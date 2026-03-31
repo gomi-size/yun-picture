@@ -41,6 +41,12 @@
             <version>3.5.15</version>
         </dependency>
 
+        <!-- jdk 8+ 引入可选模块 -->
+        <dependency>
+            <groupId>com.baomidou</groupId>
+            <artifactId>mybatis-plus-jsqlparser-4.9</artifactId>
+        </dependency>
+
         <!--hutool https://doc.hutool.cn/pages/index/-->
         <dependency>
             <groupId>cn.hutool</groupId>
@@ -61,6 +67,13 @@
             <artifactId>spring-boot-starter-aop</artifactId>
         </dependency>
 
+        <!--jwt-->
+        <dependency>
+            <groupId>cn.hutool</groupId>
+            <artifactId>hutool-all</artifactId>
+            <version>5.8.38</version>
+        </dependency>
+
     </dependencies>
     <dependencyManagement>
         <dependencies>
@@ -71,7 +84,16 @@
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
+
+            <dependency>
+                <groupId>com.baomidou</groupId>
+                <artifactId>mybatis-plus-bom</artifactId>
+                <version>3.5.15</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
         </dependencies>
+
     </dependencyManagement>
 
     <build>
