@@ -11,6 +11,11 @@ spring:
     url: jdbc:mysql://localhost:3306/yu_picture
     username: root
     password: 123456
+    # 开放更大的文件上传体积
+  servlet:
+    multipart:
+      max-file-size: 10MB
+
 mybatis-plus:
   configuration:
     # MyBatis 配置
@@ -22,9 +27,6 @@ mybatis-plus:
       logic-delete-field: isDelete
       logic-delete-value: 1 # 逻辑已删除值。可选，默认值为 1
       logic-not-delete-value: 0 # 逻辑未删除值。可选，默认值为 0
-
-
-
 #接口文档
 knife4j:
   enable: true
@@ -37,3 +39,6 @@ knife4j:
         api-rule: package
         api-rule-resources:
           - com.yupi.yupicturebackend.controller
+
+
+
