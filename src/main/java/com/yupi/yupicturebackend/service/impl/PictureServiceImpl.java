@@ -7,20 +7,18 @@ import cn.hutool.json.JSONUtil;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 
-import com.yupi.yupicturebackend.common.BaseResponse;
+import com.yupi.yupicturebackend.common.AutoReviewParams;
 import com.yupi.yupicturebackend.common.QueryWrapperUtils;
 import com.yupi.yupicturebackend.controller.UserController;
 import com.yupi.yupicturebackend.exception.ErrorCode;
 import com.yupi.yupicturebackend.exception.ThrowUtils;
 import com.yupi.yupicturebackend.manager.FileManager;
 import com.yupi.yupicturebackend.mapper.PictureMapper;
-import com.yupi.yupicturebackend.model.dto.file.PictureEditRequest;
-import com.yupi.yupicturebackend.model.dto.file.PictureQueryRequest;
-import com.yupi.yupicturebackend.model.dto.file.PictureUpdateRequest;
+import com.yupi.yupicturebackend.model.dto.picture.*;
 import com.yupi.yupicturebackend.model.dto.file.UploadPictureResult;
-import com.yupi.yupicturebackend.model.dto.picture.PictureUploadRequest;
 import com.yupi.yupicturebackend.model.entity.Picture;
 import com.yupi.yupicturebackend.model.entity.User;
+import com.yupi.yupicturebackend.model.enums.PictureReviewStatusEnum;
 import com.yupi.yupicturebackend.model.enums.UserRoleEnum;
 import com.yupi.yupicturebackend.model.vo.PictureVO;
 import com.yupi.yupicturebackend.model.vo.UserVO;
@@ -54,6 +52,14 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
     @Autowired
     private UserController user;
 
+    /**
+     * 上传图片
+     *
+     * @param multipartFile
+     * @param pictureUploadRequest
+     * @param loginUser
+     * @return
+     */
     @Override
     public PictureVO uploadPicture(MultipartFile multipartFile, PictureUploadRequest pictureUploadRequest, User loginUser) {
         //1.校验参数
@@ -61,11 +67,19 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         ThrowUtils.throwIf(loginUser.getId() == null, ErrorCode.NOT_LOGIN_ERROR);
         //2.判断是新增还是删除
         Picture picture = new Picture();
+
+        //如果是更新，判断图片
         if (pictureUploadRequest.getId() != null) {
             //2.1前端有传递图片的id就将id赋值给picture
             picture.setId(pictureUploadRequest.getId());
+
             //2.2判断图片是否在数据库不在就直接抛出异常
             ThrowUtils.throwIf(getById(picture.getId()) == null, ErrorCode.NOT_FOUND_ERROR);
+
+            //2.3（新增） 仅限管理员更新图片并且还要管理本人
+            ThrowUtils.throwIf(!getById(picture.getId()).getUserId().equals(loginUser.getId()) && userService.isAdmin(loginUser)
+                    , ErrorCode.NO_AUTH_ERROR);
+
         }
         //3.上传图片（无论更新还是添加这个时候都需要添加到云储存）
         //3.1。拼接路径，按id划分
@@ -81,10 +95,13 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
 
         picture.setUserId(loginUser.getId());
 
+        //设置图片状态的审核
+        AutoReviewParams.fillReviewParams(picture, loginUser);
         //5.操作数据库
         //5.1判断是更新还是删除
         if (picture.getId() != null) {
             //更新操作
+            picture.setEditTime(new Date());
             boolean resultUpdate = updateById(picture);
             ThrowUtils.throwIf(!resultUpdate, ErrorCode.OPERATION_ERROR, "图片更新失败，请稍后再试");
         } else {
@@ -96,6 +113,7 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
     }
 
     /**
+     * 获取图片分页的脱敏数据
      * @param pictureQueryRequest  图片分页DTO
      * @param request     用户session
      * @return
@@ -141,21 +159,30 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
     }
 
     /**
+     * 修改图片（管理员使用）
      * @param pictureUpdateRequest 图片修改DTO
      */
     @Override
-    public Boolean updatePicture(PictureUpdateRequest pictureUpdateRequest) {
+    public Boolean updatePicture(PictureUpdateRequest pictureUpdateRequest,
+                                 HttpServletRequest request) {
         //流程:将DTO转化为实体类->参数校验->操作数据库
+
         //参数转换(将DTO转化为实体类)
-        Picture oldPicture = BeanUtil.copyProperties(pictureUpdateRequest, Picture.class);
-        oldPicture.setTags(JSONUtil.toJsonStr(pictureUpdateRequest.getTags()));
+        Picture picture = BeanUtil.copyProperties(pictureUpdateRequest, Picture.class);
+        picture.setTags(JSONUtil.toJsonStr(pictureUpdateRequest.getTags()));
         //参数校验
-        validPicture(oldPicture);
+        validPicture(picture);
+
         //查数据库中是否有该图片
-        Picture picture = getById(oldPicture.getId());
-        ThrowUtils.throwIf(picture == null, ErrorCode.NOT_FOUND_ERROR);
+        Picture oldPicture = getById(picture.getId());
+        ThrowUtils.throwIf(oldPicture == null, ErrorCode.NOT_FOUND_ERROR);
+
+        //设置图片的审核状态
+        User loginUser = userService.getLoginUser(request);
+        AutoReviewParams.fillReviewParams(picture, loginUser);
+
         //操作数据库
-        boolean result = updateById(oldPicture);
+        boolean result = updateById(picture);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
         return result;
     }
@@ -188,11 +215,46 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
 
         //设置修改时间
         oldPicture.setEditTime(new Date());
-
+        //设置图片状态的审核
+        AutoReviewParams.fillReviewParams(picture, loginUser);
         //操作数据库
         Boolean result = updateById(oldPicture);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
         return result;
+    }
+
+    /**
+     * 图片审核状态修改
+     *
+     * @param pictureReviewRequest
+     * @param loginUser
+     */
+    @Override
+    public void doPictureReview(PictureReviewRequest pictureReviewRequest, User loginUser) {
+        //1.校验参数
+        ThrowUtils.throwIf(pictureReviewRequest == null, ErrorCode.NOT_FOUND_ERROR);
+        //1.2获取参数
+        Long id = pictureReviewRequest.getId();
+        Integer reviewStatus = pictureReviewRequest.getReviewStatus();
+        //获取enumByValue防止前端乱传参数
+        PictureReviewStatusEnum enumByValue = PictureReviewStatusEnum.getEnumByValue(reviewStatus);
+
+        //2.3再一次判断，防止前端乱传参数
+        ThrowUtils.throwIf(enumByValue == null || id == null, ErrorCode.PARAMS_ERROR);
+
+        //2.判断图片是否存在
+        Picture oldPicture = getById(id);
+        ThrowUtils.throwIf(oldPicture == null, ErrorCode.NOT_FOUND_ERROR);
+
+        //2.1防止重复申查
+        ThrowUtils.throwIf(oldPicture.getReviewStatus().equals(reviewStatus), ErrorCode.PARAMS_ERROR, "请勿重复审查");
+
+        //3.修改数据
+        Picture picture = BeanUtil.copyProperties(pictureReviewRequest, Picture.class);
+        picture.setUserId(loginUser.getId());
+        picture.setReviewTime(new Date());
+        boolean result = updateById(picture);
+        ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
     }
 
 

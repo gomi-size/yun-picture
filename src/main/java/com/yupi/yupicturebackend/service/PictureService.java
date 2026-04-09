@@ -1,13 +1,8 @@
 package com.yupi.yupicturebackend.service;
 
-import cn.hutool.http.server.HttpServerRequest;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
-import com.yupi.yupicturebackend.common.BaseResponse;
-import com.yupi.yupicturebackend.model.dto.file.PictureEditRequest;
-import com.yupi.yupicturebackend.model.dto.file.PictureQueryRequest;
-import com.yupi.yupicturebackend.model.dto.file.PictureUpdateRequest;
-import com.yupi.yupicturebackend.model.dto.picture.PictureUploadRequest;
+import com.yupi.yupicturebackend.model.dto.picture.*;
 import com.yupi.yupicturebackend.model.entity.Picture;
 import com.yupi.yupicturebackend.model.entity.User;
 import com.yupi.yupicturebackend.model.vo.PictureVO;
@@ -36,7 +31,7 @@ public interface PictureService extends IService<Picture> {
 
 
     /**
-     * 用户集合的分页查询
+     * 分页查询(用户使用)
      *
      * @param pictureQueryRequest 图图片分页DTO
      * @param request     用户session
@@ -50,7 +45,7 @@ public interface PictureService extends IService<Picture> {
      *
      * @param pictureUpdateRequest 图片修改DTO
      */
-    Boolean updatePicture(PictureUpdateRequest pictureUpdateRequest);
+    Boolean updatePicture(PictureUpdateRequest pictureUpdateRequest, HttpServletRequest request);
 
     /**
      *  修改图片（用户使用）
@@ -59,4 +54,9 @@ public interface PictureService extends IService<Picture> {
      * @return 布尔
      */
     Boolean editPicture(PictureEditRequest pictureEditRequest, HttpServletRequest request);
+
+    /**
+     * 图片审核状态修改
+     */
+    void doPictureReview(PictureReviewRequest pictureReviewRequest, User loginUser);
 }

@@ -1,4 +1,4 @@
-package com.yupi.yupicturebackend.model.dto.file;
+package com.yupi.yupicturebackend.model.dto.picture;
 
 import lombok.Data;
 
@@ -6,10 +6,10 @@ import java.io.Serializable;
 import java.util.List;
 
 /**
- * 图片编辑请求
+ * 图片更新
  */
 @Data
-public class PictureEditRequest implements Serializable {
+public class PictureUpdateRequest implements Serializable {
 
     /**
      * id
@@ -35,6 +35,7 @@ public class PictureEditRequest implements Serializable {
      * 标签
      */
     private List<String> tags;
+
 
     private static final long serialVersionUID = 1L;
 }
