@@ -57,6 +57,23 @@ public class PictureController {
     }
 
     /**
+     * 通过rul上传图片（可重新上传）
+     */
+    @PostMapping("/upload/url")
+    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    public BaseResponse<PictureVO> uploadPictureByUrl(
+            @RequestBody PictureUploadRequest pictureUploadRequest,
+            HttpServletRequest request) {
+        //得到用户
+        User loginUser = userService.getLoginUser(request);
+        String fileUrl = pictureUploadRequest.getFileUrl();
+        //主要业务
+        PictureVO pictureVO = pictureService.uploadPicture(fileUrl, pictureUploadRequest, loginUser);
+
+        return ResultUtils.success(pictureVO);
+    }
+
+    /**
      * 删除图片
      *
      * @param deleteRequest 删除的统一请求

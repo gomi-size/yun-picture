@@ -21,7 +21,7 @@ import javax.annotation.Resource;
 import javax.servlet.http.HttpServletResponse;
 import java.io.File;
 import java.io.IOException;
-
+@Deprecated
 @RestController
 @Slf4j
 public class FileController {

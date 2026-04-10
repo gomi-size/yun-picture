@@ -24,6 +24,11 @@ import java.util.List;
 /**
  * 与业务有点关系的类（也是通用的）
  */
+/**
+ * 文件服务
+ * @deprecated 已废弃，改为使用 upload 包的模板方法优化
+ */
+@Deprecated
 @Slf4j
 @Service
 public class FileManager {

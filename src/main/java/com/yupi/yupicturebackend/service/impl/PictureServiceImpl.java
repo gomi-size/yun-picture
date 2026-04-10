@@ -13,6 +13,9 @@ import com.yupi.yupicturebackend.controller.UserController;
 import com.yupi.yupicturebackend.exception.ErrorCode;
 import com.yupi.yupicturebackend.exception.ThrowUtils;
 import com.yupi.yupicturebackend.manager.FileManager;
+import com.yupi.yupicturebackend.manager.upload.PictureUpload;
+import com.yupi.yupicturebackend.manager.upload.PictureUploadTemplate;
+import com.yupi.yupicturebackend.manager.upload.URLUpload;
 import com.yupi.yupicturebackend.mapper.PictureMapper;
 import com.yupi.yupicturebackend.model.dto.picture.*;
 import com.yupi.yupicturebackend.model.dto.file.UploadPictureResult;
@@ -49,21 +52,24 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
     private FileManager fileManager;
     @Resource
     private UserService userService;
-    @Autowired
-    private UserController user;
+    @Resource
+    private URLUpload uRLUpload;
+    @Resource
+    private PictureUpload pictureUpload;
+
 
     /**
      * 上传图片
      *
-     * @param multipartFile
+     * @param inputSource 文件输入源
      * @param pictureUploadRequest
      * @param loginUser
      * @return
      */
     @Override
-    public PictureVO uploadPicture(MultipartFile multipartFile, PictureUploadRequest pictureUploadRequest, User loginUser) {
+    public PictureVO uploadPicture(Object inputSource, PictureUploadRequest pictureUploadRequest, User loginUser) {
         //1.校验参数
-        ThrowUtils.throwIf(multipartFile == null, ErrorCode.NOT_FOUND_ERROR);
+        ThrowUtils.throwIf(inputSource == null, ErrorCode.NOT_FOUND_ERROR);
         ThrowUtils.throwIf(loginUser.getId() == null, ErrorCode.NOT_LOGIN_ERROR);
         //2.判断是新增还是删除
         Picture picture = new Picture();
@@ -86,7 +92,12 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         String uploadPathPrefix = String.format("public/%s", loginUser.getId());
 
         //3.2.发送,获取返回结果
-        UploadPictureResult uploadPictureResult = fileManager.uploadPicture(multipartFile, uploadPathPrefix);
+        //根据inputSource的类型区分上传方式
+        PictureUploadTemplate pictureUploadTemplate=pictureUpload;
+        if(inputSource instanceof String) {
+            pictureUploadTemplate=uRLUpload;
+        }
+        UploadPictureResult uploadPictureResult = pictureUploadTemplate.uploadPicture(inputSource, uploadPathPrefix);
 
         //4.构造要入库的图片信息
         BeanUtil.copyProperties(uploadPictureResult, picture);
