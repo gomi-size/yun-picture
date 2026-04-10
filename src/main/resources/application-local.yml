@@ -1,8 +1,0 @@
-# 对象存储配置（需要从腾讯云获取）
-cos:
-  client:
-    host: https://yupii-1417936672.cos.ap-shanghai.myqcloud.com
-    secretId: AKIDLn25uXxCIDvGSRDm8JH3e2DPSJ1aUCk7
-    secretKey: JQOCrOluqcRAiO0Rl04vSt8IF0gARYUD
-    region: ap-shanghai
-    bucket: yupii-1417936672
