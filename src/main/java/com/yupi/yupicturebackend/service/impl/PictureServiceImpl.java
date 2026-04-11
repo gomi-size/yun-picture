@@ -1,6 +1,7 @@
 package com.yupi.yupicturebackend.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.collection.CollectionUtil;
 import cn.hutool.core.util.ObjUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONUtil;
@@ -157,7 +158,8 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         //1.获取分页的初始数据
         List<Picture> pictureList = picturePage.getRecords();
         Page<PictureVO> pictureVOPage = new Page<>(picturePage.getCurrent(), picturePage.getSize(), picturePage.getTotal());
-        if (pictureList == null) {
+        //这里修改
+        if (CollectionUtil.isEmpty(pictureList)) {
             return pictureVOPage;
         }
 
@@ -165,10 +167,10 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         List<PictureVO> pictureVOList = pictureList.stream().map(PictureVO::objToVo).collect(Collectors.toList());
 
         //3.获取到用户id列表
-        Set<Long> uerIDset = pictureList.stream().map(Picture::getUserId).collect(Collectors.toSet());
+        Set<Long> uerIdset = pictureList.stream().map(Picture::getUserId).collect(Collectors.toSet());
 
         //4.进行数据库查询，后转换为map集合，使用用户id当key
-        Map<Long, List<User>> userIdUserListMap = userService.listByIds(uerIDset).stream().collect(Collectors.groupingBy(User::getId));
+        Map<Long, List<User>> userIdUserListMap = userService.listByIds(uerIdset).stream().collect(Collectors.groupingBy(User::getId));
 
         //5.将每一个UserVO都填充到pictureVOList这个中
         pictureVOList.forEach(pictureVO -> {
