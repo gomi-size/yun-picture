@@ -59,4 +59,11 @@ public interface PictureService extends IService<Picture> {
      * 图片审核状态修改
      */
     void doPictureReview(PictureReviewRequest pictureReviewRequest, User loginUser);
+
+    /**
+     * 批量填充抓取图片
+     */
+    Integer uploadPictureByBatch(PictureUploadByBatchRequest pictureUploadByBatchRequest
+            , User loginUser);
+
 }

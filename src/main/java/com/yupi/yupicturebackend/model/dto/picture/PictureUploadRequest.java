@@ -1,10 +1,14 @@
 package com.yupi.yupicturebackend.model.dto.picture;
 
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
 
 @Data
+@AllArgsConstructor
+@NoArgsConstructor
 public class PictureUploadRequest implements Serializable {
 
     /**
@@ -15,6 +19,10 @@ public class PictureUploadRequest implements Serializable {
      * 文件路径
      */
     private String fileUrl;
+    /**
+     * 图片名称
+     */
+    private String picName;
 
     private static final long serialVersionUID = 1L;
 }

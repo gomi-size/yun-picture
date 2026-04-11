@@ -4,6 +4,7 @@ import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.NumberUtil;
 import cn.hutool.core.util.RandomUtil;
+import cn.hutool.core.util.StrUtil;
 import com.qcloud.cos.model.PutObjectResult;
 import com.qcloud.cos.model.ciModel.persistence.ImageInfo;
 import com.yupi.yupicturebackend.config.CosClientConfig;
@@ -54,12 +55,13 @@ public abstract class PictureUploadTemplate {
         String originalFilename = getOriginalFilename(inputSource);
 
         //2.3得到后缀
-        String suffix = FileUtil.getSuffix(originalFilename);
+        String suffix = StrUtil.blankToDefault(FileUtil.getSuffix(originalFilename),
+                "jpg");
 
         //2.4拼接字符串，设置上传路径
         String uploadFileName = String.format("%s_%s.%s", DateUtil.formatDate(new Date()), uuid, suffix);
 
-        //uploadPathPrefix这个是key是用户自己创建的文件夹
+        //uploadPathPrefix这个是key是用户自己创建的user文件夹
         String uploadPath = String.format("/%s/%s", uploadPathPrefix, uploadFileName);
 
         //3.解析结果并返回
