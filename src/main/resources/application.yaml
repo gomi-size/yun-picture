@@ -5,6 +5,9 @@ server:
 spring:
   application:
     name: yu-picture-backend
+  profiles:
+    active: local
+
   #数据库配置
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -15,7 +18,12 @@ spring:
   servlet:
     multipart:
       max-file-size: 10MB
-
+  redis:
+    host: 192.168.211.201  # 你的虚拟机 IP
+    port: 6379             # Redis 默认端口
+    database: 0            # 默认使用 0 号数据库
+    timeout: 5000ms        # 连接超时时间（5秒）
+    password: 123456  # <--- 把这行的注释解开，填上密码
 mybatis-plus:
   configuration:
     # MyBatis 配置
@@ -39,6 +47,5 @@ knife4j:
         api-rule: package
         api-rule-resources:
           - com.yupi.yupicturebackend.controller
-
 
 

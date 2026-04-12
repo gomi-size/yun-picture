@@ -183,6 +183,7 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         });
         //6.将pictureVOList放入到pictureVOPage中就结束了
         pictureVOPage.setRecords(pictureVOList);
+
         return pictureVOPage;
     }
 
