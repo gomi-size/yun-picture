@@ -13,6 +13,7 @@ import com.yupi.yupicturebackend.common.QueryWrapperUtils;
 import com.yupi.yupicturebackend.exception.BusinessException;
 import com.yupi.yupicturebackend.exception.ErrorCode;
 import com.yupi.yupicturebackend.exception.ThrowUtils;
+import com.yupi.yupicturebackend.manager.CosManager;
 import com.yupi.yupicturebackend.manager.FileManager;
 import com.yupi.yupicturebackend.manager.upload.PictureUpload;
 import com.yupi.yupicturebackend.manager.upload.PictureUploadTemplate;
@@ -35,6 +36,8 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 
@@ -66,6 +69,8 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
     private URLUpload uRLUpload;
     @Resource
     private PictureUpload pictureUpload;
+    @Autowired
+    private CosManager cosManager;
 
 
     /**
@@ -95,6 +100,8 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
             //2.3（新增） 仅限管理员更新图片并且还要管理本人
             ThrowUtils.throwIf(!getById(picture.getId()).getUserId().equals(loginUser.getId()) && userService.isAdmin(loginUser)
                     , ErrorCode.NO_AUTH_ERROR);
+            //2.4（新增）删除cos对象存储中的图片
+            clearPictureFile(picture);
 
         }
         //3.上传图片（无论更新还是添加这个时候都需要添加到云储存）
@@ -110,7 +117,7 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
 
         UploadPictureResult uploadPictureResult = pictureUploadTemplate.uploadPicture(inputSource, uploadPathPrefix);
 
-        //4.构造要入库的图片信息
+        //4.构造要入库的图片信息（这里不会赋值id）
         BeanUtil.copyProperties(uploadPictureResult, picture);
 
         // 支持外层传递图片名称
@@ -358,6 +365,27 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
 
         }
         return uploadCount;
+    }
+
+    /**
+     * 删除对象存储的图片
+     * @param olPicture 图片
+     */
+    @Async
+    @Override
+    public void clearPictureFile(Picture olPicture) {
+        //1.查看这个图片中谁还在使用
+        Long count = lambdaQuery().eq(Picture::getUrl, olPicture.getUrl()).count();
+        if(count>1){
+            //有多条记录,不清理
+            return;
+        }
+        //删除图片
+        cosManager.deleteObject(olPicture.getUrl());
+        //删除缩略图
+        if(StrUtil.isBlank(olPicture.getThumbnailUrl())){
+            cosManager.deleteObject(olPicture.getThumbnailUrl());
+        }
     }
 
 
