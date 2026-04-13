@@ -1,12 +1,17 @@
 server:
   servlet:
     context-path: /api
+    #cookie 30 天过期
+    session:
+      cookie:
+        max-age: 2592000
   port: 8080
 spring:
   application:
     name: yu-picture-backend
   profiles:
     active: local
+
 
   #数据库配置
   datasource:
@@ -24,6 +29,10 @@ spring:
     database: 0            # 默认使用 0 号数据库
     timeout: 5000ms        # 连接超时时间（5秒）
     password: 123456  # <--- 把这行的注释解开，填上密码
+#session
+  session:
+    store-type: redis
+    timeout: 2592000
 mybatis-plus:
   configuration:
     # MyBatis 配置

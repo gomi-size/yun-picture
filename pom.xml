@@ -41,6 +41,13 @@
             <version>3.5.15</version>
         </dependency>
 
+        <!-- Spring Session + Redis -->
+        <dependency>
+            <groupId>org.springframework.session</groupId>
+            <artifactId>spring-session-data-redis</artifactId>
+        </dependency>
+
+
         <!-- jdk 8+ 引入可选模块 -->
         <dependency>
             <groupId>com.baomidou</groupId>
