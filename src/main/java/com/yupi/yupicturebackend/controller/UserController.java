@@ -20,7 +20,6 @@ import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
-import javax.xml.bind.annotation.XmlType;
 
 @RestController
 @RequestMapping("/user")

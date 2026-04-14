@@ -7,11 +7,12 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.yupi.yupicturebackend.exception.BusinessException;
 import com.yupi.yupicturebackend.exception.ErrorCode;
 import com.yupi.yupicturebackend.model.dto.picture.PictureQueryRequest;
+import com.yupi.yupicturebackend.model.dto.sapce.SpaceQueryRequest;
 import com.yupi.yupicturebackend.model.dto.user.UserQueryRequest;
 import com.yupi.yupicturebackend.model.entity.Picture;
+import com.yupi.yupicturebackend.model.entity.Space;
 import com.yupi.yupicturebackend.model.entity.User;
 
-import java.util.Date;
 import java.util.List;
 
 /**
@@ -47,7 +48,7 @@ public class QueryWrapperUtils {
     }
 
     /**
-     * 用户列表的分页查询
+     * 图片的分页查询
      *
      * @param pictureQueryRequest 分页查询的请求类
      * @return 分页查询的条件
@@ -104,6 +105,36 @@ public class QueryWrapperUtils {
                 queryWrapper.like("tags", "\"" + tag + "\"");
             }
         }
+        // 排序
+        queryWrapper.orderBy(StrUtil.isNotEmpty(sortField), sortOrder.equals("ascend"), sortField);
+        return queryWrapper;
+    }
+
+
+    /**
+     * 图片的分页查询
+     *
+     * @param spaceQueryRequest 分页查询的请求类
+     * @return 分页查询的条件
+     */
+    public static QueryWrapper<Space> getQueryWrapper(SpaceQueryRequest spaceQueryRequest) {
+        QueryWrapper<Space> queryWrapper = new QueryWrapper<>();
+        if (spaceQueryRequest == null) {
+            return queryWrapper;
+        }
+        // 从对象中取值
+        Long id = spaceQueryRequest.getId();
+        Long userId = spaceQueryRequest.getUserId();
+        String spaceName = spaceQueryRequest.getSpaceName();
+        Integer spaceLevel = spaceQueryRequest.getSpaceLevel();
+        String sortField = spaceQueryRequest.getSortField();
+        String sortOrder = spaceQueryRequest.getSortOrder();
+
+
+        queryWrapper.eq(ObjUtil.isNotEmpty(id), "id", id);
+        queryWrapper.eq(ObjUtil.isNotEmpty(userId), "userId", userId);
+        queryWrapper.like(StrUtil.isNotBlank(spaceName), "name", spaceName);
+        queryWrapper.eq(ObjUtil.isNotEmpty(spaceLevel), "spaceLevel", spaceLevel);
         // 排序
         queryWrapper.orderBy(StrUtil.isNotEmpty(sortField), sortOrder.equals("ascend"), sortField);
         return queryWrapper;
