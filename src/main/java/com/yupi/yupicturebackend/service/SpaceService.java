@@ -5,6 +5,7 @@ import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.yupi.yupicturebackend.exception.ErrorCode;
 import com.yupi.yupicturebackend.exception.ThrowUtils;
+import com.yupi.yupicturebackend.model.dto.sapce.SpaceAddRequest;
 import com.yupi.yupicturebackend.model.dto.sapce.SpaceEditRequest;
 import com.yupi.yupicturebackend.model.dto.sapce.SpaceQueryRequest;
 import com.yupi.yupicturebackend.model.dto.sapce.SpaceUpdateRequest;
@@ -61,4 +62,10 @@ public interface SpaceService extends IService<Space> {
      * @return
      */
     Boolean editSpace(SpaceEditRequest spaceEditRequest, HttpServletRequest request);
+
+
+    /**
+     * 添加私有空间
+     */
+    long addSpace(SpaceAddRequest spaceAddRequest , User loginUser);
 }

@@ -1,10 +1,7 @@
 package com.yupi.yupicturebackend.controller;
 
 import cn.hutool.core.bean.BeanUtil;
-import cn.hutool.json.JSONUtil;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
 import com.yupi.yupicturebackend.annotation.AuthCheck;
 import com.yupi.yupicturebackend.common.BaseResponse;
 import com.yupi.yupicturebackend.common.DeleteRequest;
@@ -13,28 +10,27 @@ import com.yupi.yupicturebackend.common.ResultUtils;
 import com.yupi.yupicturebackend.constant.UserConstant;
 import com.yupi.yupicturebackend.exception.ErrorCode;
 import com.yupi.yupicturebackend.exception.ThrowUtils;
-import com.yupi.yupicturebackend.model.dto.sapce.SpaceEditRequest;
-import com.yupi.yupicturebackend.model.dto.sapce.SpaceQueryRequest;
-import com.yupi.yupicturebackend.model.dto.sapce.SpaceUpdateRequest;
+import com.yupi.yupicturebackend.model.dto.sapce.*;
 import com.yupi.yupicturebackend.model.entity.Space;
 import com.yupi.yupicturebackend.model.entity.User;
+import com.yupi.yupicturebackend.model.enums.SpaceLevelEnum;
 import com.yupi.yupicturebackend.model.enums.UserRoleEnum;
 import com.yupi.yupicturebackend.model.vo.SpaceVO;
 import com.yupi.yupicturebackend.service.SpaceService;
 import com.yupi.yupicturebackend.service.UserService;
 import lombok.extern.slf4j.Slf4j;
 
-import org.springframework.util.DigestUtils;
 import org.springframework.web.bind.annotation.*;
 
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
-
-import java.util.concurrent.TimeUnit;
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @RestController
-@RequestMapping("/picture")
+@RequestMapping("/space")
 @Slf4j
 public class SpaceController {
 
@@ -42,6 +38,20 @@ public class SpaceController {
     private UserService userService;
     @Resource
     private SpaceService spaceService;
+
+
+
+    /**
+     * 添加私有空间
+     */
+    @PostMapping("/add")
+    public BaseResponse<Long> addSpace(@RequestBody SpaceAddRequest spaceAddRequest,HttpServletRequest request) {
+        ThrowUtils.throwIf(spaceAddRequest==null,ErrorCode.PARAMS_ERROR);
+        User loginUser = userService.getLoginUser(request);
+        long result = spaceService.addSpace(spaceAddRequest, loginUser);
+        return ResultUtils.success(result);
+    }
+
 
     /**
      * 删除空间
@@ -139,6 +149,21 @@ public class SpaceController {
         ThrowUtils.throwIf(pictureEditRequest == null||pictureEditRequest.getId()<=0, ErrorCode.PARAMS_ERROR);
         Boolean result= spaceService.editSpace(pictureEditRequest,request);
         return ResultUtils.success(result);
+    }
+
+    /**
+     * 获取所有空间级别列表，便于前端展示
+     */
+    @GetMapping("/list/level")
+    public BaseResponse<List<SpaceLevel>> listSpaceLevel(){
+        List<SpaceLevel> spaceLevelList = Arrays.stream(SpaceLevelEnum.values())
+                .map(spaceLevelEnum -> new SpaceLevel(
+                        spaceLevelEnum.getValue(),
+                        spaceLevelEnum.getText(),
+                        spaceLevelEnum.getMaxCount(),
+                        spaceLevelEnum.getMaxSize()
+                )).collect(Collectors.toList());
+        return ResultUtils.success(spaceLevelList);
     }
 
 }

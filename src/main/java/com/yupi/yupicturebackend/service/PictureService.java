@@ -2,7 +2,10 @@ package com.yupi.yupicturebackend.service;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.yupi.yupicturebackend.common.BaseResponse;
+import com.yupi.yupicturebackend.common.DeleteRequest;
 import com.yupi.yupicturebackend.model.dto.picture.*;
+import com.yupi.yupicturebackend.model.dto.sapce.SpaceAddRequest;
 import com.yupi.yupicturebackend.model.entity.Picture;
 import com.yupi.yupicturebackend.model.entity.User;
 import com.yupi.yupicturebackend.model.vo.PictureVO;
@@ -71,4 +74,19 @@ public interface PictureService extends IService<Picture> {
      */
     void clearPictureFile(Picture picture);
 
+    /**
+     * 校验权限
+     * @param loginUser
+     * @param picture
+     */
+    void checkPictureAuth(User loginUser, Picture picture);
+
+    /**
+     * 删除图片
+     * @param deleteRequest
+     * @param request
+     * @return
+     */
+    Boolean deletePicture(DeleteRequest deleteRequest
+            , HttpServletRequest request);
 }

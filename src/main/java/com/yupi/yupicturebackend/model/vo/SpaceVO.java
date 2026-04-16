@@ -52,6 +52,9 @@ public class SpaceVO implements Serializable {
      */
     private Long userId;
 
+
+
+
     /**
      * 创建时间
      */

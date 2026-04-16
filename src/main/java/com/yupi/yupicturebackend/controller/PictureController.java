@@ -16,14 +16,17 @@ import com.yupi.yupicturebackend.exception.ErrorCode;
 import com.yupi.yupicturebackend.exception.ThrowUtils;
 import com.yupi.yupicturebackend.model.dto.picture.*;
 import com.yupi.yupicturebackend.model.entity.Picture;
+import com.yupi.yupicturebackend.model.entity.Space;
 import com.yupi.yupicturebackend.model.entity.User;
 import com.yupi.yupicturebackend.model.enums.PictureReviewStatusEnum;
-import com.yupi.yupicturebackend.model.enums.UserRoleEnum;
 import com.yupi.yupicturebackend.model.vo.PictureTagCategory;
 import com.yupi.yupicturebackend.model.vo.PictureVO;
 import com.yupi.yupicturebackend.service.PictureService;
+import com.yupi.yupicturebackend.service.SpaceService;
 import com.yupi.yupicturebackend.service.UserService;
+import com.yupi.yupicturebackend.service.impl.SpaceServiceImpl;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.util.DigestUtils;
@@ -47,6 +50,8 @@ public class PictureController {
     private PictureService pictureService;
     @Resource
     private StringRedisTemplate stringRedisTemplate;
+    @Resource
+    private SpaceService spaceService;
     //构建本地缓存
     private final Cache<String, String> LOCAL_CACHE =
             Caffeine.newBuilder().initialCapacity(1024)
@@ -54,11 +59,15 @@ public class PictureController {
                     // 缓存 5 分钟移除
                     .expireAfterWrite(5L, TimeUnit.MINUTES)
                     .build();
+
+    private final String VERSION= "yunpicture:list_version";
+    @Autowired
+    private SpaceServiceImpl spaceServiceImpl;
+
     /**
      * 上传图片（可重新上传）
      */
     @PostMapping("/upload")
-    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
     public BaseResponse<PictureVO> uploadPicture(
             @RequestPart("file") MultipartFile multipartFile,
             PictureUploadRequest pictureUploadRequest,
@@ -67,6 +76,9 @@ public class PictureController {
         User loginUser = userService.getLoginUser(request);
         //主要业务
         PictureVO pictureVO = pictureService.uploadPicture(multipartFile, pictureUploadRequest, loginUser);
+        //一旦修改后直接清楚所有缓存
+        stringRedisTemplate.opsForValue().increment("yunpicture:list_version");
+        LOCAL_CACHE.invalidateAll();
 
         return ResultUtils.success(pictureVO);
     }
@@ -84,7 +96,9 @@ public class PictureController {
         String fileUrl = pictureUploadRequest.getFileUrl();
         //主要业务
         PictureVO pictureVO = pictureService.uploadPicture(fileUrl, pictureUploadRequest, loginUser);
-
+        //一旦修改后直接清楚所有缓存
+        stringRedisTemplate.opsForValue().increment("yunpicture:list_version");
+        LOCAL_CACHE.invalidateAll();
         return ResultUtils.success(pictureVO);
     }
 
@@ -98,35 +112,26 @@ public class PictureController {
     @PostMapping("/delete")
     public BaseResponse<Boolean> deletePicture(@RequestBody DeleteRequest deleteRequest
             , HttpServletRequest request) {
-        User loginUser = userService.getLoginUser(request);
+        ThrowUtils.throwIf(deleteRequest.getId()<=0,ErrorCode.PARAMS_ERROR);
+        Boolean result = pictureService.deletePicture(deleteRequest, request);
+        //进行清除缓存
+        stringRedisTemplate.opsForValue().increment("yunpicture:list_version");
+        LOCAL_CACHE.invalidateAll();
 
-        //传递的参数校验
-        ThrowUtils.throwIf(deleteRequest == null || deleteRequest.getId() <= 0, ErrorCode.PARAMS_ERROR);
-
-        //对参数进行校验
-        Picture picture = pictureService.getById(deleteRequest.getId());
-        ThrowUtils.throwIf(picture == null, ErrorCode.NOT_FOUND_ERROR);
-
-        //仅限用户本人或者管理员进行操作
-        ThrowUtils.throwIf(!picture.getUserId().equals(loginUser.getId()) &&
-                !UserRoleEnum.ADMIN.getValue().equals(loginUser.getUserRole()), ErrorCode.NO_AUTH_ERROR);
-
-        //删除图片
-        boolean result = pictureService.removeById(picture.getId());
-        //清理图片资源
-        pictureService.clearPictureFile(picture);
-        ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
         return ResultUtils.success(result);
     }
 
     /**
-     * 修改图片（管理员使用）
+     * 更新图片（管理员使用）
      */
     @PostMapping("/update")
     @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
     public BaseResponse<Boolean> updatePicture(@RequestBody PictureUpdateRequest pictureUpdateRequest, HttpServletRequest request) {
         Boolean result = pictureService.updatePicture(pictureUpdateRequest, request);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
+        //一旦修改后直接清楚所有缓存
+        stringRedisTemplate.opsForValue().increment("yunpicture:list_version");
+        LOCAL_CACHE.invalidateAll();
         return ResultUtils.success(result);
     }
 
@@ -139,6 +144,11 @@ public class PictureController {
         ThrowUtils.throwIf(id == null || id <= 0, ErrorCode.PARAMS_ERROR);
         Picture picture = pictureService.getById(id);
         ThrowUtils.throwIf(picture == null, ErrorCode.NOT_FOUND_ERROR);
+        Long spaceId = picture.getSpaceId();
+        if (spaceId != null) {
+            User loginUsers = userService.getLoginUser(request);
+            pictureService.checkPictureAuth(loginUsers,picture);
+        }
         return ResultUtils.success(picture);
     }
 
@@ -170,23 +180,43 @@ public class PictureController {
     }
 
     /**
-     * 分页查询（获取是的脱敏的数据）
+     * 分页查询（获取是的脱敏的数据）TODO 封装到service
      */
     @PostMapping("/list/page/vo")
     public BaseResponse<Page<PictureVO>> listPictureVOByPage(@RequestBody PictureQueryRequest pictureQueryRequest,HttpServletRequest request) {
-        //流程 获取redisKey（项目名+传递方法名+传递的参数名）->在redis中查询->(没有命中请数据库中查询，并保存到redis中，设置过期值)->命中了返回
 
+        //校验权限
+        Long spaceId = pictureQueryRequest.getSpaceId();
+        if(spaceId==null){
+            //公开图库，普通用户默认只能看到审核通过的数据
+            pictureQueryRequest.setReviewStatus(PictureReviewStatusEnum.PASS.getValue());
+            pictureQueryRequest.setNullSpace(true);
+        }else{
+            //私有空间
+            User loginUser = userService.getLoginUser(request);
+            Space space = spaceService.getById(spaceId);
+            ThrowUtils.throwIf(space==null, ErrorCode.NOT_FOUND_ERROR,"没有该空间");
+            ThrowUtils.throwIf(!loginUser.getId().equals(space.getUserId()), ErrorCode.NO_AUTH_ERROR);
+
+        }
+        //流程 获取redisKey（项目名+传递方法名+传递的参数名）->在redis中查询->(没有命中请数据库中查询，并保存到redis中，设置过期值)->命中了返回
+        String version = stringRedisTemplate.opsForValue().get(VERSION);
+        if (version == null) {
+            version = "1";
+            stringRedisTemplate.opsForValue().set(VERSION, version);
+        }
         int size = pictureQueryRequest.getPageSize();
         ThrowUtils.throwIf(size>20, ErrorCode.PARAMS_ERROR);
         //普通用户只能看到自己的图片
         pictureQueryRequest.setReviewStatus(PictureReviewStatusEnum.PASS.getValue());
+
         //1.构建缓存key
         //1.2.将前端传递的类转化为json
         String queryCondition = JSONUtil.toJsonStr(pictureQueryRequest);
         //1.3使用MD5转换成hash值
         String hashKey = DigestUtils.md5DigestAsHex(queryCondition.getBytes());
         //1.4拼接redis的key
-        String cacheKey = String.format("yunpicture:listPictureVOByPage:%s", hashKey);
+        String cacheKey = String.format("yunpicture:listPictureVOByPage:%s/%s", hashKey,version);
 
         // 先使用本地缓存
         String cachedValue = LOCAL_CACHE.getIfPresent(cacheKey);
@@ -221,12 +251,15 @@ public class PictureController {
     }
 
     /**
-     * 修改图片（用户使用）
+     * 编辑图片（用户使用）
      */
     @PostMapping("/edit")
     public BaseResponse<Boolean> editPicture(@RequestBody PictureEditRequest pictureEditRequest,HttpServletRequest request) {
         ThrowUtils.throwIf(pictureEditRequest == null, ErrorCode.PARAMS_ERROR);
         Boolean result= pictureService.editPicture(pictureEditRequest,request);
+        //一旦修改后直接清楚所有缓存
+        stringRedisTemplate.opsForValue().increment("yunpicture:list_version");
+        LOCAL_CACHE.invalidateAll();
         return ResultUtils.success(result);
     }
 
@@ -247,7 +280,7 @@ public class PictureController {
     }
 
     /**
-     * 审核图片（用户使用）
+     * 审核图片（管理员）
      */
     @PostMapping("/review")
     @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
@@ -266,23 +299,11 @@ public class PictureController {
         ThrowUtils.throwIf(pictureUploadByBatchRequest == null, ErrorCode.PARAMS_ERROR);
         User loginUser = userService.getLoginUser(request);
         Integer uploadedCount = pictureService.uploadPictureByBatch(pictureUploadByBatchRequest, loginUser);
+        //一旦修改后直接清楚所有缓存
+        stringRedisTemplate.opsForValue().increment("yunpicture:list_version");
+        LOCAL_CACHE.invalidateAll();
+        LOCAL_CACHE.invalidateAll();
         return ResultUtils.success(uploadedCount);
     }
 
 }
-/**//**
- * 分页查询（获取是的脱敏的数据）
- *//*
-    @PostMapping("/list/page/vo")
-    public BaseResponse<Page<PictureVO>> listPictureVOByPage(@RequestBody PictureQueryRequest pictureQueryRequest,HttpServletRequest request) {
-        int size = pictureQueryRequest.getPageSize();
-        ThrowUtils.throwIf(size>20, ErrorCode.PARAMS_ERROR);
-        //普通用户只能看到自己的图片
-        pictureQueryRequest.setReviewStatus(PictureReviewStatusEnum.PASS.getValue());
-        //首先先取redis中查询
-        //从数据库查
-        Page<PictureVO> pictureVOPage = pictureService.
-                getPictureVOPage(pictureQueryRequest, request);
-        return ResultUtils.success(pictureVOPage);
-
-    }*/

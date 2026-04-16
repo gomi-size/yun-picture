@@ -8,6 +8,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.yupi.yupicturebackend.common.QueryWrapperUtils;
 import com.yupi.yupicturebackend.exception.ErrorCode;
 import com.yupi.yupicturebackend.exception.ThrowUtils;
+import com.yupi.yupicturebackend.model.dto.sapce.SpaceAddRequest;
 import com.yupi.yupicturebackend.model.dto.sapce.SpaceEditRequest;
 import com.yupi.yupicturebackend.model.dto.sapce.SpaceQueryRequest;
 import com.yupi.yupicturebackend.model.dto.sapce.SpaceUpdateRequest;
@@ -21,6 +22,7 @@ import com.yupi.yupicturebackend.service.SpaceService;
 import com.yupi.yupicturebackend.mapper.SpaceMapper;
 import com.yupi.yupicturebackend.service.UserService;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
@@ -41,28 +43,9 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
     @Resource
     private UserService userService;
 
-    /**
-     * 参数校验
-     *
-     * @param space 图片类
-     */
-    @Override
-    public void validSpace(Space space, boolean add) {
-        ThrowUtils.throwIf(space == null, ErrorCode.PARAMS_ERROR);
-        // 从对象中取值
-        String spaceName = space.getSpaceName();
-        Integer spaceLevel = space.getSpaceLevel();
-        SpaceLevelEnum spaceLevelEnum = SpaceLevelEnum.getEnumByValue(spaceLevel);
-        //创建时校验
-        if (add) {
-            ThrowUtils.throwIf(StrUtil.isBlank(spaceName), ErrorCode.PARAMS_ERROR, "空间名称不能为空");
-            ThrowUtils.throwIf(spaceLevelEnum == null, ErrorCode.PARAMS_ERROR, "创建空间级别不能为空");
-        }
-        //修改数据时，空间名称进行校验
-        ThrowUtils.throwIf(StrUtil.isNotBlank(spaceName) && spaceName.length() > 30, ErrorCode.PARAMS_ERROR, "空间名称过长");
-        //修改数据时，空间级别进行校验
-        ThrowUtils.throwIf(spaceLevel != null && spaceLevelEnum == null, ErrorCode.PARAMS_ERROR, "空间级别不存在");
-    }
+    @Resource
+    private TransactionTemplate transactionTemplate;
+
 
     /**
      * 获取分页（脱敏）
@@ -186,6 +169,82 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
         return result;
     }
+
+    /**
+     * 添加空间
+     * @param spaceAddRequest
+     * @param loginUser
+     * @return
+     */
+    @Override
+    public long addSpace(SpaceAddRequest spaceAddRequest, User loginUser) {
+        //1.转化成picture并设置一些数值
+        Space space = BeanUtil.copyProperties(spaceAddRequest, Space.class);
+        if(StrUtil.isBlank(spaceAddRequest.getSpaceName())){
+            space.setSpaceName(loginUser.getUserName()+"的默认空间");
+        }
+        if(spaceAddRequest.getSpaceLevel()==null){
+            space.setSpaceLevel(SpaceLevelEnum.COMMON.getValue());
+        }
+        //设置对应空间等级的容量
+        fillSpaceBySpaceLevel(space);
+        //2.校验参数
+        validSpace(space,true);
+        //3.权限校验，非管理员只能创建普通级别的空间
+        Long userId = loginUser.getId();
+        space.setUserId(userId);
+        ThrowUtils.throwIf(SpaceLevelEnum.COMMON.getValue()!=space.getSpaceLevel()&&!userService.isAdmin(loginUser)
+                , ErrorCode.NO_AUTH_ERROR,"无权限创建指定级别空间");
+        //4.控制同一用户，只能创建一个空间
+        String lock=String.valueOf(userId).intern();
+        synchronized (lock) {
+           Long newSpaceId=  transactionTemplate.execute(status -> {
+                //判断是否有空间
+                boolean exists = lambdaQuery().eq(Space::getUserId, userId).exists();
+                ThrowUtils.throwIf(exists, ErrorCode.OPERATION_ERROR,"不能重复创建空间，每个用户只能有一个私有空间");
+                //创建空间
+                boolean result = save(space);
+                ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR,"数据库操作失败，请稍后再试");
+                return space.getId();
+            });
+            return newSpaceId;
+        }
+    }
+
+
+    /**
+     * 参数校验
+     *
+     * @param space 图片类
+     */
+    @Override
+    public void validSpace(Space space, boolean add) {
+        ThrowUtils.throwIf(space == null, ErrorCode.PARAMS_ERROR);
+        // 从对象中取值
+        String spaceName = space.getSpaceName();
+        Integer spaceLevel = space.getSpaceLevel();
+        SpaceLevelEnum spaceLevelEnum = SpaceLevelEnum.getEnumByValue(spaceLevel);
+        //创建时校验
+        if (add) {
+            ThrowUtils.throwIf(StrUtil.isBlank(spaceName), ErrorCode.PARAMS_ERROR, "空间名称不能为空");
+            ThrowUtils.throwIf(spaceLevelEnum == null, ErrorCode.PARAMS_ERROR, "创建空间级别不能为空");
+        }
+        //修改数据时，空间名称进行校验
+        ThrowUtils.throwIf(StrUtil.isNotBlank(spaceName) && spaceName.length() > 30, ErrorCode.PARAMS_ERROR, "空间名称过长");
+        //修改数据时，空间级别进行校验
+        ThrowUtils.throwIf(spaceLevel != null && spaceLevelEnum == null, ErrorCode.PARAMS_ERROR, "空间级别不存在");
+    }
+
+
+
+
+
+
+
+
+
+
+
 }
 
 

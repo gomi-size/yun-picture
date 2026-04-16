@@ -73,6 +73,9 @@ public class Space {
      */
     private Date updateTime;
 
+
+
+
     /**
      * 是否删除
      */
