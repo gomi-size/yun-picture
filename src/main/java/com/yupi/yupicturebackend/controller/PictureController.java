@@ -60,9 +60,7 @@ public class PictureController {
                     .expireAfterWrite(5L, TimeUnit.MINUTES)
                     .build();
 
-    private final String VERSION= "yunpicture:list_version";
-    @Autowired
-    private SpaceServiceImpl spaceServiceImpl;
+
 
     /**
      * 上传图片（可重新上传）
@@ -184,69 +182,13 @@ public class PictureController {
      */
     @PostMapping("/list/page/vo")
     public BaseResponse<Page<PictureVO>> listPictureVOByPage(@RequestBody PictureQueryRequest pictureQueryRequest,HttpServletRequest request) {
-
-        //校验权限
-        Long spaceId = pictureQueryRequest.getSpaceId();
-        if(spaceId==null){
-            //公开图库，普通用户默认只能看到审核通过的数据
-            pictureQueryRequest.setReviewStatus(PictureReviewStatusEnum.PASS.getValue());
-            pictureQueryRequest.setNullSpace(true);
-        }else{
-            //私有空间
-            User loginUser = userService.getLoginUser(request);
-            Space space = spaceService.getById(spaceId);
-            ThrowUtils.throwIf(space==null, ErrorCode.NOT_FOUND_ERROR,"没有该空间");
-            ThrowUtils.throwIf(!loginUser.getId().equals(space.getUserId()), ErrorCode.NO_AUTH_ERROR);
-
-        }
-        //流程 获取redisKey（项目名+传递方法名+传递的参数名）->在redis中查询->(没有命中请数据库中查询，并保存到redis中，设置过期值)->命中了返回
-        String version = stringRedisTemplate.opsForValue().get(VERSION);
-        if (version == null) {
-            version = "1";
-            stringRedisTemplate.opsForValue().set(VERSION, version);
-        }
         int size = pictureQueryRequest.getPageSize();
         ThrowUtils.throwIf(size>20, ErrorCode.PARAMS_ERROR);
         //普通用户只能看到自己的图片
         pictureQueryRequest.setReviewStatus(PictureReviewStatusEnum.PASS.getValue());
-
-        //1.构建缓存key
-        //1.2.将前端传递的类转化为json
-        String queryCondition = JSONUtil.toJsonStr(pictureQueryRequest);
-        //1.3使用MD5转换成hash值
-        String hashKey = DigestUtils.md5DigestAsHex(queryCondition.getBytes());
-        //1.4拼接redis的key
-        String cacheKey = String.format("yunpicture:listPictureVOByPage:%s/%s", hashKey,version);
-
-        // 先使用本地缓存
-        String cachedValue = LOCAL_CACHE.getIfPresent(cacheKey);
-        if(cachedValue != null) {
-            Page<PictureVO> cachePage = JSONUtil.toBean(cachedValue, Page.class);
-            return ResultUtils.success(cachePage);
-        }
-
-        //本地没有命中再从redis中查询,命中了那就返回
-        ValueOperations<String, String> opsForValue = stringRedisTemplate.opsForValue();
-        cachedValue = opsForValue.get(cacheKey);
-
-        if(cachedValue != null) {
-            //更新本地缓存
-            LOCAL_CACHE.put(cacheKey,cachedValue);
-            
-            Page<PictureVO> cachePage = JSONUtil.toBean(cachedValue, Page.class);
-            return ResultUtils.success(cachePage);
-        }
-
         //没有命中，从数据库查
         Page<PictureVO> pictureVOPage = pictureService.
                 getPictureVOPage(pictureQueryRequest, request);
-        String cacheValue = JSONUtil.toJsonStr(pictureVOPage);
-        //设置缓存时间5~10分钟过期，防止缓存雪崩
-        int cacheExpireTime=300+ RandomUtil.randomInt(0,300);
-        //写到redis中
-        opsForValue.set(cacheKey, cacheValue,cacheExpireTime, TimeUnit.SECONDS);
-        //写到本地缓存中
-        LOCAL_CACHE.put(cacheKey,cacheValue);
         return ResultUtils.success(pictureVOPage);
     }
 

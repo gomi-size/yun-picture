@@ -3,11 +3,14 @@ package com.yupi.yupicturebackend.service.impl;
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.collection.CollectionUtil;
 import cn.hutool.core.util.ObjUtil;
+import cn.hutool.core.util.RandomUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONUtil;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.yupi.yupicturebackend.common.*;
 import com.yupi.yupicturebackend.exception.BusinessException;
 import com.yupi.yupicturebackend.exception.ErrorCode;
@@ -39,9 +42,11 @@ import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.util.DigestUtils;
 
 
 import javax.annotation.Resource;
@@ -52,6 +57,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
@@ -80,7 +86,14 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
     private SpaceService spaceService;
     @Resource
     private TransactionTemplate transactionTemplate;
-
+    //构建本地缓存
+    private final Cache<String, String> LOCAL_CACHE =
+            Caffeine.newBuilder().initialCapacity(1024)
+                    .maximumSize(10000L)
+                    // 缓存 5 分钟移除
+                    .expireAfterWrite(5L, TimeUnit.MINUTES)
+                    .build();
+    private final String VERSION= "yunpicture:list_version";
     /**
      * 上传图片
      *
@@ -243,14 +256,65 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
     @Override
     public Page<PictureVO> getPictureVOPage(PictureQueryRequest pictureQueryRequest, HttpServletRequest request) {
 
+        //1.校验权限
+        Long spaceId = pictureQueryRequest.getSpaceId();
+        if(spaceId==null){
+            //1.1公开图库，普通用户默认只能看到审核通过的数据
+            pictureQueryRequest.setReviewStatus(PictureReviewStatusEnum.PASS.getValue());
+            pictureQueryRequest.setNullSpace(true);
+        }else{
+            //1.2私有空间
+            User loginUser = userService.getLoginUser(request);
+            Space space = spaceService.getById(spaceId);
+            ThrowUtils.throwIf(space==null, ErrorCode.NOT_FOUND_ERROR,"没有该空间");
+            ThrowUtils.throwIf(!loginUser.getId().equals(space.getUserId()), ErrorCode.NO_AUTH_ERROR);
+
+        }
+        //2.使用缓存
+        //流程 获取redisKey（项目名+传递方法名+传递的参数名）->在redis中查询->
+        // (没有命中请数据库中查询，并保存到redis中，设置过期值)->命中了返回
+        //2.1设置版本
+        String version = stringRedisTemplate.opsForValue().get(VERSION);
+        if (version == null) {
+            version = "1";
+            stringRedisTemplate.opsForValue().set(VERSION, version);
+        }
+
+        //2.2构建缓存key
+        //将前端传递的类转化为json
+        String queryCondition = JSONUtil.toJsonStr(pictureQueryRequest);
+        //使用MD5转换成hash值
+        String hashKey = DigestUtils.md5DigestAsHex(queryCondition.getBytes());
+        //拼接redis的key
+        String cacheKey = String.format("yunpicture:listPictureVOByPage:%s/%s", hashKey,version);
+
+        //2.3查寻缓存（先使用本地缓存）
+        String cachedValue = LOCAL_CACHE.getIfPresent(cacheKey);
+        if(cachedValue != null) {
+            Page<PictureVO> cachePage = JSONUtil.toBean(cachedValue, Page.class);
+            return cachePage;
+        }
+
+        //2.4本地没有命中再从redis中查询,命中了那就返回
+        ValueOperations<String, String> opsForValue = stringRedisTemplate.opsForValue();
+        cachedValue = opsForValue.get(cacheKey);
+        //2.5本地缓存没有，要是redis有的话就要设置到本地缓存
+        if(cachedValue != null) {
+            //更新本地缓存
+            LOCAL_CACHE.put(cacheKey,cachedValue);
+
+            Page<PictureVO> cachePage = JSONUtil.toBean(cachedValue, Page.class);
+            return cachePage;
+        }
+        //3.进行数据库的查询
         //整个的一个流程: 获取分页初始数据->将数据脱敏->根据数据获取用户ID->查询id后转为Map集合->后将所有的用户转化为VO并存入到pictureVOList
         //->将数据放入pictureVOPage返回即可
-        //0.获取picturePage
+        //3.1获取picturePage
         int current = pictureQueryRequest.getCurrent();
         int pageSize = pictureQueryRequest.getPageSize();
         Page<Picture> picturePage = page(new Page<>(current, pageSize), QueryWrapperUtils.getQueryWrapper(pictureQueryRequest));
 
-        //1.获取分页的初始数据
+        //3.2获取分页的初始数据
         List<Picture> pictureList = picturePage.getRecords();
         Page<PictureVO> pictureVOPage = new Page<>(picturePage.getCurrent(), picturePage.getSize(), picturePage.getTotal());
         //这里修改
@@ -258,16 +322,16 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
             return pictureVOPage;
         }
 
-        //2.获取到图片脱敏后的数据
+        //3.3获取到图片脱敏后的数据
         List<PictureVO> pictureVOList = pictureList.stream().map(PictureVO::objToVo).collect(Collectors.toList());
 
-        //3.获取到用户id列表
+        //3.4获取到用户id列表
         Set<Long> uerIdset = pictureList.stream().map(Picture::getUserId).collect(Collectors.toSet());
 
-        //4.进行数据库查询，后转换为map集合，使用用户id当key
+        //3.5进行数据库查询，后转换为map集合，使用用户id当key
         Map<Long, List<User>> userIdUserListMap = userService.listByIds(uerIdset).stream().collect(Collectors.groupingBy(User::getId));
 
-        //5.将每一个UserVO都填充到pictureVOList这个中
+        //3.6将每一个UserVO都填充到pictureVOList这个中
         pictureVOList.forEach(pictureVO -> {
             User user=null;
             Long userId = pictureVO.getUserId();
@@ -276,8 +340,17 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
             }
             pictureVO.setUser(BeanUtil.copyProperties(user, UserVO.class));
         });
-        //6.将pictureVOList放入到pictureVOPage中就结束了
+        //3.7将pictureVOList放入到pictureVOPage中就结束了
         pictureVOPage.setRecords(pictureVOList);
+
+        //4.查询后需要存储缓存中
+        String cacheValue = JSONUtil.toJsonStr(pictureVOPage);
+        //设置缓存时间5~10分钟过期，防止缓存雪崩
+        int cacheExpireTime=300+ RandomUtil.randomInt(0,300);
+        //写到redis中
+        opsForValue.set(cacheKey, cacheValue,cacheExpireTime, TimeUnit.SECONDS);
+        //写到本地缓存中
+        LOCAL_CACHE.put(cacheKey,cacheValue);
 
         return pictureVOPage;
     }
