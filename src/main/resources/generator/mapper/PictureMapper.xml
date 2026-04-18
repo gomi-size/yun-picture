@@ -22,6 +22,7 @@
         <result property="createTime" column="createTime"/>
         <result property="editTime" column="editTime"/>
         <result property="updateTime" column="updateTime"/>
+        <result property="picColor" column="picColor"/>
         <result property="isDelete" column="isDelete"/>
         <result property="reviewStatus" column="reviewStatus"/>
         <result property="reviewMessage" column="reviewMessage"/>
@@ -33,7 +34,7 @@
         id
         ,url,thumbnailUrl,name,introduction,category,tags,
         picSize,picWidth,picHeight,picScale,picFormat,
-        userId,spaceId,createTime,editTime,updateTime,isDelete,
+        userId,spaceId,createTime,editTime,updateTime,picColor,isDelete,
         reviewStatus,reviewMessage,reviewerId,reviewTime
     </sql>
 </mapper>

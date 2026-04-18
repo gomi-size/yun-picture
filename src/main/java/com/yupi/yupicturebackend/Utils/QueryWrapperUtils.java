@@ -1,4 +1,4 @@
-package com.yupi.yupicturebackend.common;
+package com.yupi.yupicturebackend.Utils;
 
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.ObjUtil;

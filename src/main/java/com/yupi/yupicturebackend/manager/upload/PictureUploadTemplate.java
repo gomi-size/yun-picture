@@ -94,7 +94,7 @@ public abstract class PictureUploadTemplate {
                     thumbnailCiobject= objectList.get(1);
                 }
                 //返回压缩图的返回结果
-                return buildResult(originalFilename, compressdCiobject,thumbnailCiobject);
+                return buildResult(originalFilename, compressdCiobject,thumbnailCiobject,imageInfo);
             }
             //4.处理图片信息并封装返回结果
             return buildResult( uploadPath, originalFilename, file, imageInfo);
@@ -109,13 +109,16 @@ public abstract class PictureUploadTemplate {
     }
 
     /**
-     * 封装返回结果
+     * 封装返回结果（有压缩图的封装返回结果）
      * @param originalFilename 原始文件名
      * @param compressdCiobject 压缩后的对象
      * @param thumbnailCiobject 缩略图的对象
+     * @param imageInfo 图片信息
+     *
      * @return
      */
-    private UploadPictureResult buildResult(String originalFilename, CIObject compressdCiobject, CIObject thumbnailCiobject) {
+    private UploadPictureResult buildResult(String originalFilename, CIObject compressdCiobject, CIObject thumbnailCiobject,
+                                            ImageInfo imageInfo) {
         int pictureWidth = compressdCiobject.getWidth();
         int pictureHeight = compressdCiobject.getHeight();
 
@@ -140,6 +143,8 @@ public abstract class PictureUploadTemplate {
         uploadPictureResult.setThumbnailUrl(cosClientConfig.getHost() + "/" +thumbnailCiobject.getKey());
         //得到格式
         uploadPictureResult.setPicFormat(compressdCiobject.getFormat());
+        //得到主色调
+        uploadPictureResult.setPicColor(imageInfo.getAve());
         return uploadPictureResult;
 
     }
@@ -175,6 +180,9 @@ public abstract class PictureUploadTemplate {
         uploadPictureResult.setPicScale(picScale);
         //得到格式
         uploadPictureResult.setPicFormat(imageInfo.getFormat());
+        //得到主色调
+        uploadPictureResult.setPicColor(imageInfo.getAve());
+
         return uploadPictureResult;
     }
 
