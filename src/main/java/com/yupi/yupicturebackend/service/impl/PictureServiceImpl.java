@@ -238,13 +238,16 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         transactionTemplate.execute(status -> {
             //删除图片
             boolean result = removeById(oldPicture.getId());
-            //更新使用空间的额度
-            boolean update = spaceService.lambdaUpdate()
-                    .eq(Space::getId, spaceId)
-                    .setSql("totalSize=totalSize-" + oldPicture.getPicSize())
-                    .setSql("totalCount=totalCount-1")
-                    .update();
-            ThrowUtils.throwIf(!update,ErrorCode.OPERATION_ERROR,"额度更新失败");
+            if (spaceId != null) {
+                //更新使用空间的额度
+                boolean update = spaceService.lambdaUpdate()
+                        .eq(Space::getId, spaceId)
+                        .setSql("totalSize=totalSize-" + oldPicture.getPicSize())
+                        .setSql("totalCount=totalCount-1")
+                        .update();
+                ThrowUtils.throwIf(!update, ErrorCode.OPERATION_ERROR, "额度更新失败");
+            }
+
             return result;
         });
 
@@ -253,6 +256,14 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         return true;
     }
 
+    /**
+     * 颜色搜索图片
+     *
+     * @param spaceId
+     * @param picColor
+     * @param loginUser
+     * @return
+     */
     @Override
     public List<PictureVO> searchPictureByColor(Long spaceId, String picColor, User loginUser) {
         //1.校验参数
@@ -289,6 +300,83 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         return sortedPictureList.stream()
                 .map(PictureVO::objToVo)
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * 批量编辑图片
+     *
+     * @param pictureEditByBatchRequest
+     * @param loginUser
+     */
+    @Override
+    public void editPictureByBatch(PictureEditByBatchRequest pictureEditByBatchRequest, User loginUser) {
+        //1.获取和校验参数
+        List<Long> pictureIdList = pictureEditByBatchRequest.getPictureIdList();
+        Long spaceId = pictureEditByBatchRequest.getSpaceId();
+        String category = pictureEditByBatchRequest.getCategory();
+        List<String> tags = pictureEditByBatchRequest.getTags();
+
+        ThrowUtils.throwIf(pictureIdList == null || pictureIdList.size() <= 0, ErrorCode.PARAMS_ERROR);
+        //允许管理员进行编辑所有的图片
+        //2.校验空间权限
+        List<Picture> pictureList;
+        if(spaceId!=null){
+            Space space = spaceService.getById(spaceId);
+            ThrowUtils.throwIf(space==null, ErrorCode.NOT_FOUND_ERROR);
+            ThrowUtils.throwIf(!space.getUserId().equals(loginUser.getId()), ErrorCode.NO_AUTH_ERROR);
+            //3.查询指定的图片
+             pictureList = lambdaQuery().select(Picture::getId, Picture::getSpaceId)
+                    .eq(Picture::getSpaceId, spaceId)
+                    .in(Picture::getId, pictureIdList).list();
+             if (CollUtil.isEmpty(pictureList)) {
+                 return;
+             }
+        }else{
+            //3.查询指定的图片
+             pictureList= lambdaQuery().select(Picture::getId)
+                    .in(Picture::getId, pictureIdList).list();
+            if (CollUtil.isEmpty(pictureList)) {
+                return;
+            }
+        }
+        //4.更新分类和标签
+        pictureList.forEach(picture -> {
+            if(category!=null){
+                picture.setCategory(category);
+            }
+            picture.setUpdateTime(new Date());
+            if(tags!=null){
+                picture.setTags(tags.toString());
+            }
+        });
+        //批量重命名
+        String nameRule = pictureEditByBatchRequest.getNameRule();
+        fillPictureWithNameRule(pictureList,nameRule);
+        //5.操作 数据库进行批量更新
+        boolean result = updateBatchById(pictureList);
+        ThrowUtils.throwIf(!result,ErrorCode.OPERATION_ERROR,"数据库更新失败");
+
+    }
+    /**
+     nameRule格式:图片{序号}
+     @param pictureList
+     @param nameRule
+    **/
+    private void fillPictureWithNameRule(List<Picture> pictureList, String nameRule) {
+        if(StrUtil.isBlank(nameRule)){
+            return;
+        }
+        long count=1;
+        try{
+            for (Picture picture : pictureList) {
+                String pictureName = nameRule.replaceAll("\\{序号}", String.valueOf(count++));
+                picture.setName(pictureName);
+            }
+        }catch (Exception e){
+            log.error("名称解析失败",e);
+            throw new BusinessException(ErrorCode.OPERATION_ERROR,"名称解析失败");
+        }
+
     }
 
     /**
