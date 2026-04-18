@@ -181,6 +181,7 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         picture.setName(picName);
 
         picture.setUserId(loginUser.getId());
+        picture.setSpaceId(spaceId);
 
         //设置图片状态的审核
         AutoReviewParams.fillReviewParams(picture, loginUser);
@@ -198,12 +199,14 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
                 ThrowUtils.throwIf(!resultSave, ErrorCode.OPERATION_ERROR, "图片保存失败，请稍后再试");
             }
             //5.2更新使用空间的额度
-            boolean update = spaceService.lambdaUpdate()
-                    .eq(Space::getId, picture.getSpaceId())
-                    .setSql("totalSize=totalSize" + picture.getPicSize())
-                    .setSql("totalCount=totalCount+1")
-                    .update();
-            ThrowUtils.throwIf(!update,ErrorCode.OPERATION_ERROR,"额度更新失败");
+            if(picture.getSpaceId()!=null){
+                boolean update = spaceService.lambdaUpdate()
+                        .eq(Space::getId, picture.getSpaceId())
+                        .setSql("totalSize=totalSize+" + picture.getPicSize())
+                        .setSql("totalCount=totalCount+1")
+                        .update();
+                ThrowUtils.throwIf(!update,ErrorCode.OPERATION_ERROR,"额度更新失败");
+            }
             return PictureVO.objToVo(picture);
         });
         return PictureVO.objToVo(picture);
