@@ -112,9 +112,9 @@ public class SpaceController {
     @GetMapping("/get/vo")
     public BaseResponse<SpaceVO> getSpaceVOById(Long id) {
         ThrowUtils.throwIf(id == null || id <= 0, ErrorCode.PARAMS_ERROR);
-        Space picture = spaceService.getById(id);
-        ThrowUtils.throwIf(picture == null, ErrorCode.NOT_FOUND_ERROR);
-        SpaceVO pictureVO = BeanUtil.copyProperties(picture, SpaceVO.class);
+        Space space = spaceService.getById(id);
+        ThrowUtils.throwIf(space == null, ErrorCode.NOT_FOUND_ERROR);
+        SpaceVO pictureVO = BeanUtil.copyProperties(space, SpaceVO.class);
         return ResultUtils.success(pictureVO);
     }
 
