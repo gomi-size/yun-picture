@@ -14,6 +14,9 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.yupi.yupicturebackend.Utils.ColorSimilarUtils;
 import com.yupi.yupicturebackend.Utils.QueryWrapperUtils;
+import com.yupi.yupicturebackend.api.aliyunAi.aliyunAiApi;
+import com.yupi.yupicturebackend.api.aliyunAi.model.CreateOutPaintingTaskRequest;
+import com.yupi.yupicturebackend.api.aliyunAi.model.CreateOutPaintingTaskResponse;
 import com.yupi.yupicturebackend.common.*;
 import com.yupi.yupicturebackend.exception.BusinessException;
 import com.yupi.yupicturebackend.exception.ErrorCode;
@@ -88,6 +91,8 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
     private SpaceService spaceService;
     @Resource
     private TransactionTemplate transactionTemplate;
+    @Resource
+    private aliyunAiApi  aliyunAiApi;
     //构建本地缓存
     private final Cache<String, String> LOCAL_CACHE =
             Caffeine.newBuilder().initialCapacity(1024)
@@ -357,6 +362,33 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         ThrowUtils.throwIf(!result,ErrorCode.OPERATION_ERROR,"数据库更新失败");
 
     }
+
+    /**
+     * 创建扩图请求
+     * @param createPictureOutPaintingTaskRequest
+     * @param loginUser
+     */
+    @Override
+    public CreateOutPaintingTaskResponse createPictureOutPaintingTask(CreatePictureOutPaintingTaskRequest createPictureOutPaintingTaskRequest, User loginUser) {
+        //校验参数
+        ThrowUtils.throwIf(createPictureOutPaintingTaskRequest==null, ErrorCode.PARAMS_ERROR);
+        Long pictureId = createPictureOutPaintingTaskRequest.getPictureId();
+        Picture picture = getById(pictureId);
+        ThrowUtils.throwIf(picture==null, ErrorCode.NOT_FOUND_ERROR);
+        checkPictureAuth(loginUser,picture);
+        //构建参数
+        CreateOutPaintingTaskRequest createOutPaintingTaskRequest=new CreateOutPaintingTaskRequest();
+        //放入input
+        CreateOutPaintingTaskRequest.Input input=new CreateOutPaintingTaskRequest.Input();
+        input.setImageUrl(picture.getUrl());
+        createOutPaintingTaskRequest.setInput(input);
+        //放入Parameters
+        createOutPaintingTaskRequest.setParameters(createPictureOutPaintingTaskRequest.getParameters());
+        //创建任务
+        return aliyunAiApi.createOutPaintingTask(createOutPaintingTaskRequest);
+
+    }
+
     /**
      nameRule格式:图片{序号}
      @param pictureList

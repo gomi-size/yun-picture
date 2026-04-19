@@ -5,6 +5,9 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.yupi.yupicturebackend.annotation.AuthCheck;
+import com.yupi.yupicturebackend.api.aliyunAi.aliyunAiApi;
+import com.yupi.yupicturebackend.api.aliyunAi.model.CreateOutPaintingTaskResponse;
+import com.yupi.yupicturebackend.api.aliyunAi.model.GetOutPaintingTaskResponse;
 import com.yupi.yupicturebackend.api.imagesSearch.ImageSearchApiFacade;
 import com.yupi.yupicturebackend.api.imagesSearch.model.ImageSearchResult;
 import com.yupi.yupicturebackend.common.BaseResponse;
@@ -54,7 +57,8 @@ public class PictureController {
                     // 缓存 5 分钟移除
                     .expireAfterWrite(5L, TimeUnit.MINUTES)
                     .build();
-
+    @Resource
+    private aliyunAiApi aliyunAiApi;
 
 
     /**
@@ -282,5 +286,31 @@ public class PictureController {
         User loginUser = userService.getLoginUser(request);
         pictureService.editPictureByBatch(pictureEditByBatchRequest, loginUser);
         return ResultUtils.success(true);
+    }
+
+
+    /**
+     * 创建 AI 扩图任务
+     */
+    @PostMapping("out_painting/create_task")
+    public BaseResponse<CreateOutPaintingTaskResponse> createPictureOutPaintingTask(@RequestBody CreatePictureOutPaintingTaskRequest createPictureOutPaintingTaskRequest, HttpServletRequest request){
+
+        ThrowUtils.throwIf(createPictureOutPaintingTaskRequest == null||createPictureOutPaintingTaskRequest.getPictureId()==null, ErrorCode.PARAMS_ERROR);
+        User loginUser = userService.getLoginUser(request);
+        CreateOutPaintingTaskResponse response = pictureService.createPictureOutPaintingTask(createPictureOutPaintingTaskRequest, loginUser);
+        return ResultUtils.success(response);
+
+    }
+
+
+    /**
+     * 查询AI扩图任务
+     */
+    @GetMapping("out_painting/get_task")
+    public BaseResponse<GetOutPaintingTaskResponse> getPictureOutPaintingTask(String taskId){
+        ThrowUtils.throwIf(taskId == null, ErrorCode.PARAMS_ERROR);
+        GetOutPaintingTaskResponse task = aliyunAiApi.getOutPaintingTask(taskId);
+        return ResultUtils.success(task);
+
     }
 }

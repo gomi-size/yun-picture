@@ -56,5 +56,6 @@ knife4j:
         api-rule: package
         api-rule-resources:
           - com.yupi.yupicturebackend.controller
+##阿里云ai配置
 
 
