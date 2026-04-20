@@ -64,7 +64,7 @@ public class FileController {
     }
 
     /**
-     * 测试文件下载
+     * 图片下载
      *
      * @param filepath 文件路径
      * @param response 响应对象

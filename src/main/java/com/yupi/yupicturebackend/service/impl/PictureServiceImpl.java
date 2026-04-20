@@ -370,21 +370,21 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
      */
     @Override
     public CreateOutPaintingTaskResponse createPictureOutPaintingTask(CreatePictureOutPaintingTaskRequest createPictureOutPaintingTaskRequest, User loginUser) {
-        //校验参数
+        //1.校验参数
         ThrowUtils.throwIf(createPictureOutPaintingTaskRequest==null, ErrorCode.PARAMS_ERROR);
         Long pictureId = createPictureOutPaintingTaskRequest.getPictureId();
         Picture picture = getById(pictureId);
         ThrowUtils.throwIf(picture==null, ErrorCode.NOT_FOUND_ERROR);
         checkPictureAuth(loginUser,picture);
-        //构建参数
+        //2.构建参数
         CreateOutPaintingTaskRequest createOutPaintingTaskRequest=new CreateOutPaintingTaskRequest();
-        //放入input
+        //3.放入input
         CreateOutPaintingTaskRequest.Input input=new CreateOutPaintingTaskRequest.Input();
         input.setImageUrl(picture.getUrl());
         createOutPaintingTaskRequest.setInput(input);
-        //放入Parameters
+        //4.放入Parameters
         createOutPaintingTaskRequest.setParameters(createPictureOutPaintingTaskRequest.getParameters());
-        //创建任务
+        //5.创建任务
         return aliyunAiApi.createOutPaintingTask(createOutPaintingTaskRequest);
 
     }
@@ -675,7 +675,7 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
           //4.上传图片
             PictureUploadRequest pictureUploadRequest = new PictureUploadRequest();
             pictureUploadRequest.setFileUrl(fileUrl);
-            pictureUploadRequest.setPicName(namePrefix+uploadCount+1);
+            pictureUploadRequest.setPicName(namePrefix+(uploadCount+1));
             try {
                 PictureVO pictureVO = uploadPicture(fileUrl, pictureUploadRequest, loginUser);
                 log.info("图片上传成功，图片id={}",pictureVO.getId());

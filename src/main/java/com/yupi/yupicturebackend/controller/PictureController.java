@@ -4,6 +4,10 @@ import cn.hutool.core.bean.BeanUtil;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+
+import com.qcloud.cos.model.COSObject;
+import com.qcloud.cos.model.COSObjectInputStream;
+import com.qcloud.cos.utils.IOUtils;
 import com.yupi.yupicturebackend.annotation.AuthCheck;
 import com.yupi.yupicturebackend.api.aliyunAi.aliyunAiApi;
 import com.yupi.yupicturebackend.api.aliyunAi.model.CreateOutPaintingTaskResponse;
@@ -15,6 +19,7 @@ import com.yupi.yupicturebackend.common.DeleteRequest;
 import com.yupi.yupicturebackend.Utils.QueryWrapperUtils;
 import com.yupi.yupicturebackend.common.ResultUtils;
 import com.yupi.yupicturebackend.constant.UserConstant;
+import com.yupi.yupicturebackend.exception.BusinessException;
 import com.yupi.yupicturebackend.exception.ErrorCode;
 import com.yupi.yupicturebackend.exception.ThrowUtils;
 import com.yupi.yupicturebackend.model.dto.picture.*;
@@ -30,9 +35,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import com.yupi.yupicturebackend.manager.CosManager;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -50,6 +58,8 @@ public class PictureController {
     private StringRedisTemplate stringRedisTemplate;
     @Resource
     private SpaceService spaceService;
+    @Resource
+    private CosManager cosManager;
     //构建本地缓存
     private final Cache<String, String> LOCAL_CACHE =
             Caffeine.newBuilder().initialCapacity(1024)
@@ -98,6 +108,39 @@ public class PictureController {
         LOCAL_CACHE.invalidateAll();
         return ResultUtils.success(pictureVO);
     }
+
+    /**
+     * 文件下载
+     */
+    @GetMapping("/download")
+    public BaseResponse<Boolean> downloadPicture(Long pictureId, HttpServletResponse response) throws IOException {
+        ThrowUtils.throwIf(pictureId==null,ErrorCode.PARAMS_ERROR,"参数不为空");
+        Picture picture = pictureService.getById(pictureId);
+        ThrowUtils.throwIf(picture==null,ErrorCode.PARAMS_ERROR,"没有该参数");
+        String pictureUrl = picture.getUrl();
+        COSObjectInputStream cosObjectInput = null;
+        try {
+            COSObject cosObject = cosManager.getObject(pictureUrl);
+            cosObjectInput = cosObject.getObjectContent();
+            // 处理下载到的流
+            byte[] bytes = IOUtils.toByteArray(cosObjectInput);
+            // 设置响应头
+            response.setContentType("application/octet-stream;charset=UTF-8");
+            response.setHeader("Content-Disposition", "attachment; filename=" + pictureUrl);
+            // 写入响应
+            response.getOutputStream().write(bytes);
+            response.getOutputStream().flush();
+        } catch (Exception e) {
+            log.error("file download error, filepath = " + pictureUrl, e);
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "下载失败");
+        } finally {
+            if (cosObjectInput != null) {
+                cosObjectInput.close();
+            }
+        }
+        return ResultUtils.success(true);
+    }
+
 
     /**
      * 删除图片
@@ -177,7 +220,7 @@ public class PictureController {
     }
 
     /**
-     * 分页查询（获取是的脱敏的数据）TODO 封装到service
+     * 分页查询（获取是的脱敏的数据）
      */
     @PostMapping("/list/page/vo")
     public BaseResponse<Page<PictureVO>> listPictureVOByPage(@RequestBody PictureQueryRequest pictureQueryRequest,HttpServletRequest request) {
@@ -229,6 +272,10 @@ public class PictureController {
         ThrowUtils.throwIf(pictureReviewRequest == null, ErrorCode.PARAMS_ERROR);
         User loginUser = userService.getLoginUser(request);
         pictureService.doPictureReview(pictureReviewRequest, loginUser);
+        //清楚缓存
+        stringRedisTemplate.opsForValue().increment("yunpicture:list_version");
+        LOCAL_CACHE.invalidateAll();
+
         return ResultUtils.success(true);
     }
     /**
@@ -313,4 +360,7 @@ public class PictureController {
         return ResultUtils.success(task);
 
     }
+
+
+
 }
