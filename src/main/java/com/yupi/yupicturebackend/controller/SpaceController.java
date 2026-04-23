@@ -69,15 +69,15 @@ public class SpaceController {
         ThrowUtils.throwIf(deleteRequest == null || deleteRequest.getId() <= 0, ErrorCode.PARAMS_ERROR);
 
         //对参数进行校验
-        Space picture = spaceService.getById(deleteRequest.getId());
-        ThrowUtils.throwIf(picture == null, ErrorCode.NOT_FOUND_ERROR);
+        Space space = spaceService.getById(deleteRequest.getId());
+        ThrowUtils.throwIf(space == null, ErrorCode.NOT_FOUND_ERROR);
 
         //仅限用户本人或者管理员进行操作
-        ThrowUtils.throwIf(!picture.getUserId().equals(loginUser.getId()) &&
+        ThrowUtils.throwIf(!space.getUserId().equals(loginUser.getId()) &&
                 !UserRoleEnum.ADMIN.getValue().equals(loginUser.getUserRole()), ErrorCode.NO_AUTH_ERROR);
 
         //删除空间
-        boolean result = spaceService.removeById(picture.getId());
+        boolean result = spaceService.removeById(space.getId());
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
         return ResultUtils.success(result);
     }
@@ -147,6 +147,7 @@ public class SpaceController {
     @PostMapping("/edit")
     public BaseResponse<Boolean> editSpace(@RequestBody SpaceEditRequest pictureEditRequest, HttpServletRequest request) {
         ThrowUtils.throwIf(pictureEditRequest == null||pictureEditRequest.getId()<=0, ErrorCode.PARAMS_ERROR);
+
         Boolean result= spaceService.editSpace(pictureEditRequest,request);
         return ResultUtils.success(result);
     }
