@@ -10,6 +10,7 @@
         <result property="spaceLevel" column="spaceLevel"/>
         <result property="maxSize" column="maxSize"/>
         <result property="maxCount" column="maxCount"/>
+        <result property="spaceType" column="spaceType"/>
         <result property="totalSize" column="totalSize"/>
         <result property="totalCount" column="totalCount"/>
         <result property="userId" column="userId"/>
@@ -21,7 +22,7 @@
 
     <sql id="Base_Column_List">
         id
-        ,spaceName,spaceLevel,maxSize,maxCount,totalSize,
+        ,spaceName,spaceLevel,maxSize,maxCount,totalSize,spaceType
         totalCount,userId,createTime,editTime,updateTime,
         isDelete
     </sql>

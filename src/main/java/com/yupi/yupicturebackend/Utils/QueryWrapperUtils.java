@@ -8,9 +8,11 @@ import com.yupi.yupicturebackend.exception.BusinessException;
 import com.yupi.yupicturebackend.exception.ErrorCode;
 import com.yupi.yupicturebackend.model.dto.picture.PictureQueryRequest;
 import com.yupi.yupicturebackend.model.dto.sapce.SpaceQueryRequest;
+import com.yupi.yupicturebackend.model.dto.sapceUser.SpaceUserQueryRequest;
 import com.yupi.yupicturebackend.model.dto.user.UserQueryRequest;
 import com.yupi.yupicturebackend.model.entity.Picture;
 import com.yupi.yupicturebackend.model.entity.Space;
+import com.yupi.yupicturebackend.model.entity.SpaceUser;
 import com.yupi.yupicturebackend.model.entity.User;
 
 import java.util.Date;
@@ -140,15 +142,44 @@ public class QueryWrapperUtils {
         Integer spaceLevel = spaceQueryRequest.getSpaceLevel();
         String sortField = spaceQueryRequest.getSortField();
         String sortOrder = spaceQueryRequest.getSortOrder();
+        Integer spaceType = spaceQueryRequest.getSpaceType();
 
 
         queryWrapper.eq(ObjUtil.isNotEmpty(id), "id", id);
         queryWrapper.eq(ObjUtil.isNotEmpty(userId), "userId", userId);
         queryWrapper.like(StrUtil.isNotBlank(spaceName), "name", spaceName);
         queryWrapper.eq(ObjUtil.isNotEmpty(spaceLevel), "spaceLevel", spaceLevel);
+        queryWrapper.eq(ObjUtil.isNotEmpty(spaceType), "spaceType", spaceType);
+
         // 排序
         queryWrapper.orderBy(StrUtil.isNotEmpty(sortField), sortOrder.equals("ascend"), sortField);
         return queryWrapper;
+
+
     }
+
+    /**
+     * 获取空间成员的分类查询
+     *
+     * @param spaceUserQueryRequest
+     * @return
+     */
+    public static QueryWrapper<SpaceUser> getQueryWrapper(SpaceUserQueryRequest spaceUserQueryRequest) {
+        QueryWrapper<SpaceUser> queryWrapper = new QueryWrapper<>();
+        if (spaceUserQueryRequest == null) {
+            return queryWrapper;
+        }
+        // 从对象中取值
+        Long id = spaceUserQueryRequest.getId();
+        Long spaceId = spaceUserQueryRequest.getSpaceId();
+        Long userId = spaceUserQueryRequest.getUserId();
+        String spaceRole = spaceUserQueryRequest.getSpaceRole();
+        queryWrapper.eq(ObjUtil.isNotEmpty(id), "id", id);
+        queryWrapper.eq(ObjUtil.isNotEmpty(spaceId), "spaceId", spaceId);
+        queryWrapper.eq(ObjUtil.isNotEmpty(userId), "userId", userId);
+        queryWrapper.eq(ObjUtil.isNotEmpty(spaceRole), "spaceRole", spaceRole);
+        return queryWrapper;
+    }
+
 
 }

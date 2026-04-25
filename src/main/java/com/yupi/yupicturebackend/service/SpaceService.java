@@ -39,7 +39,7 @@ public interface SpaceService extends IService<Space> {
      * @param request
      * @return
      */
-    Page<SpaceVO> getSpacePage(SpaceQueryRequest spaceQueryRequest, HttpServletRequest request);
+    Page<SpaceVO> getSpaceVOPage(SpaceQueryRequest spaceQueryRequest, HttpServletRequest request);
 
     /**
      * 自动填充级别
@@ -68,4 +68,6 @@ public interface SpaceService extends IService<Space> {
      * 添加私有空间
      */
     long addSpace(SpaceAddRequest spaceAddRequest , User loginUser);
+
+
 }

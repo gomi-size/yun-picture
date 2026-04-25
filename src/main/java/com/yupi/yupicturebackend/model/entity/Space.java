@@ -74,6 +74,10 @@ public class Space {
     private Date updateTime;
 
 
+    /**
+     * 空间类型：0-私有 1-团队
+     */
+    private Integer spaceType;
 
 
     /**

@@ -123,12 +123,12 @@ public class SpaceController {
      */
     @PostMapping("/list/page")
     @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
-    public BaseResponse<Page<Space>> listSpaceByPage(@RequestBody SpaceQueryRequest pictureQueryRequest) {
-        int current = pictureQueryRequest.getCurrent();
-        int pageSize = pictureQueryRequest.getPageSize();
+    public BaseResponse<Page<Space>> listSpaceByPage(@RequestBody SpaceQueryRequest spaceQueryRequest) {
+        int current = spaceQueryRequest.getCurrent();
+        int pageSize = spaceQueryRequest.getPageSize();
 
         Page<Space> picturePage = spaceService.page(new Page<>(current, pageSize),
-                QueryWrapperUtils.getQueryWrapper(pictureQueryRequest));
+                QueryWrapperUtils.getQueryWrapper(spaceQueryRequest));
         return ResultUtils.success(picturePage);
     }
 
@@ -136,8 +136,8 @@ public class SpaceController {
      * 分页查询（获取是的脱敏的数据）
      */
     @PostMapping("/list/page/vo")
-    public BaseResponse<Page<SpaceVO>> listSpaceVOByPage(@RequestBody SpaceQueryRequest pictureQueryRequest,HttpServletRequest request) {
-        Page<SpaceVO> pictureVOPage = spaceService.getSpacePage(pictureQueryRequest, request);
+    public BaseResponse<Page<SpaceVO>> listSpaceVOByPage(@RequestBody SpaceQueryRequest spaceQueryRequest, HttpServletRequest request) {
+        Page<SpaceVO> pictureVOPage = spaceService.getSpaceVOPage(spaceQueryRequest, request);
         return ResultUtils.success(pictureVOPage);
     }
 
