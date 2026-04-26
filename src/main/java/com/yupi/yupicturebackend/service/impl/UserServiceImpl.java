@@ -9,6 +9,7 @@ import com.yupi.yupicturebackend.Utils.QueryWrapperUtils;
 import com.yupi.yupicturebackend.constant.UserConstant;
 import com.yupi.yupicturebackend.exception.ErrorCode;
 import com.yupi.yupicturebackend.exception.ThrowUtils;
+import com.yupi.yupicturebackend.manager.auth.StpKit;
 import com.yupi.yupicturebackend.model.dto.user.UserLoginRequest;
 import com.yupi.yupicturebackend.model.dto.user.UserQueryRequest;
 import com.yupi.yupicturebackend.model.dto.user.UserRegisterRequest;
@@ -118,6 +119,9 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         ThrowUtils.throwIf(user==null,ErrorCode.PARAMS_ERROR,"没有该用户或密码错误");
         //3.给session赋值,计入用户登录态
         request.getSession().setAttribute(UserConstant.USER_LOGIN_STATE, user);
+        //3.1记录用户登录态到，Sa-token，便于空间鉴权使用，注意保证该用户信息与SpringSession中的信息一致
+        StpKit.SPACE.login(user.getId());
+        StpKit.SPACE.getSession().set(UserConstant.USER_LOGIN_STATE, user);
         //4.返回LoginUserVO
         return BeanUtil.copyProperties(user, LoginUserVO.class);
     }
