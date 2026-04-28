@@ -23,6 +23,8 @@ import com.yupi.yupicturebackend.exception.ErrorCode;
 import com.yupi.yupicturebackend.exception.ThrowUtils;
 import com.yupi.yupicturebackend.manager.CosManager;
 import com.yupi.yupicturebackend.manager.FileManager;
+import com.yupi.yupicturebackend.manager.auth.StpKit;
+import com.yupi.yupicturebackend.manager.auth.model.SpaceUserPermissionConstant;
 import com.yupi.yupicturebackend.manager.upload.PictureUpload;
 import com.yupi.yupicturebackend.manager.upload.PictureUploadTemplate;
 import com.yupi.yupicturebackend.manager.upload.URLUpload;
@@ -33,6 +35,7 @@ import com.yupi.yupicturebackend.model.entity.Picture;
 import com.yupi.yupicturebackend.model.entity.Space;
 import com.yupi.yupicturebackend.model.entity.User;
 import com.yupi.yupicturebackend.model.enums.PictureReviewStatusEnum;
+import com.yupi.yupicturebackend.model.enums.SpaceTypeEnum;
 import com.yupi.yupicturebackend.model.enums.UserRoleEnum;
 import com.yupi.yupicturebackend.model.vo.PictureVO;
 import com.yupi.yupicturebackend.model.vo.UserVO;
@@ -185,8 +188,12 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         }
         picture.setName(picName);
 
+        //设置前端传递的值
         picture.setUserId(loginUser.getId());
         picture.setSpaceId(spaceId);
+        picture.setTags(pictureUploadRequest.getTags());
+        picture.setCategory(pictureUploadRequest.getCategory());
+        picture.setIntroduction(pictureUploadRequest.getIntroduction());
 
         //设置图片状态的审核
         AutoReviewParams.fillReviewParams(picture, loginUser);
@@ -237,7 +244,7 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         ThrowUtils.throwIf(oldPicture == null, ErrorCode.NOT_FOUND_ERROR);
 
         //校验权限
-        checkPictureAuth(loginUser, oldPicture);
+        //checkPictureAuth(loginUser, oldPicture);
         Long spaceId = oldPicture.getSpaceId();
         //5.操作数据库,使用事务 TODO 这里还需要进行对老图片删除
         transactionTemplate.execute(status -> {
@@ -375,7 +382,7 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         Long pictureId = createPictureOutPaintingTaskRequest.getPictureId();
         Picture picture = getById(pictureId);
         ThrowUtils.throwIf(picture==null, ErrorCode.NOT_FOUND_ERROR);
-        checkPictureAuth(loginUser,picture);
+        //checkPictureAuth(loginUser,picture);
         //2.构建参数
         CreateOutPaintingTaskRequest createOutPaintingTaskRequest=new CreateOutPaintingTaskRequest();
         //3.放入input
@@ -420,19 +427,22 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
     @Override
     public Page<PictureVO> getPictureVOPage(PictureQueryRequest pictureQueryRequest, HttpServletRequest request) {
 
+        User loginUser = userService.getLoginUser(request);
         //1.校验权限
         Long spaceId = pictureQueryRequest.getSpaceId();
         if(spaceId==null){
             //1.1公开图库，普通用户默认只能看到审核通过的数据
             pictureQueryRequest.setReviewStatus(PictureReviewStatusEnum.PASS.getValue());
             pictureQueryRequest.setNullSpace(true);
-        }else{
+        //如果是私人图库那就管理员和创建人都能查看
+        }else if(spaceService.getById(spaceId).getSpaceType()== SpaceTypeEnum.PRIVATE.getValue()){
             //1.2私有空间
-            User loginUser = userService.getLoginUser(request);
-            Space space = spaceService.getById(spaceId);
-            ThrowUtils.throwIf(space==null, ErrorCode.NOT_FOUND_ERROR,"没有该空间");
-            ThrowUtils.throwIf(!loginUser.getId().equals(space.getUserId()) && !userService.isAdmin(loginUser), ErrorCode.NO_AUTH_ERROR);
-
+            ThrowUtils.throwIf(!spaceService.getById(spaceId).getUserId().equals(loginUser.getId())
+                    &&!loginUser.getUserRole().equals(UserRoleEnum.ADMIN.getValue()),ErrorCode.NO_AUTH_ERROR,"无权限");
+        }else {
+            //1.3团队用户空间
+            boolean hasPermission = StpKit.SPACE.hasPermission(SpaceUserPermissionConstant.PICTURE_VIEW);
+            ThrowUtils.throwIf(!hasPermission, ErrorCode.NO_AUTH_ERROR);
         }
         //2.使用缓存
         //流程 获取redisKey（项目名+传递方法名+传递的参数名）->在redis中查询->
@@ -564,7 +574,7 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         User loginUser = userService.getLoginUser(request);
         //参数校验
         validPicture(oldPicture);
-        checkPictureAuth(loginUser,oldPicture);
+        //checkPictureAuth(loginUser,oldPicture);
         //查数据库中是否有该图片
         Picture picture = getById(oldPicture.getId());
         ThrowUtils.throwIf(picture == null, ErrorCode.NOT_FOUND_ERROR);
@@ -734,7 +744,7 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
     }
 
     /**
-     * 校验空间图片的权限
+     * 校验空间图片的权限(已废用)
      */
     @Override
     public void checkPictureAuth(User loginUser, Picture picture){

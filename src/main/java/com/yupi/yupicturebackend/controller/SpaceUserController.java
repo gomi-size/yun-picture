@@ -10,6 +10,8 @@ import com.yupi.yupicturebackend.common.ResultUtils;
 import com.yupi.yupicturebackend.constant.UserConstant;
 import com.yupi.yupicturebackend.exception.ErrorCode;
 import com.yupi.yupicturebackend.exception.ThrowUtils;
+import com.yupi.yupicturebackend.manager.auth.annotation.SaSpaceCheckPermission;
+import com.yupi.yupicturebackend.manager.auth.model.SpaceUserPermissionConstant;
 import com.yupi.yupicturebackend.model.dto.sapce.*;
 import com.yupi.yupicturebackend.model.dto.sapceUser.SpaceUserAddRequest;
 import com.yupi.yupicturebackend.model.dto.sapceUser.SpaceUserEditRequest;
@@ -45,6 +47,7 @@ public class SpaceUserController {
      * 添加成员到空间
      */
     @PostMapping("/add")
+    @SaSpaceCheckPermission(value = SpaceUserPermissionConstant.SPACE_USER_MANAGE)
     public BaseResponse<Long> addSpaceUser(@RequestBody SpaceUserAddRequest spaceUserAddRequest) {
         ThrowUtils.throwIf(spaceUserAddRequest == null, ErrorCode.PARAMS_ERROR);
         long result = spaceUserService.addSpaceUser(spaceUserAddRequest);
@@ -59,6 +62,8 @@ public class SpaceUserController {
      * @return 布尔
      */
     @PostMapping("/delete")
+    @SaSpaceCheckPermission(value = SpaceUserPermissionConstant.SPACE_USER_MANAGE)
+
     public BaseResponse<Boolean> deleteSpaceUser(@RequestBody DeleteRequest deleteRequest) {
 
         //传递的参数校验
@@ -79,6 +84,8 @@ public class SpaceUserController {
      * 获取某个成员在某个空间的信息
      */
     @PostMapping("/get")
+    @SaSpaceCheckPermission(value = SpaceUserPermissionConstant.SPACE_USER_MANAGE)
+
     public BaseResponse<SpaceUser> getSpaceUser(@RequestBody SpaceUserQueryRequest spaceUserQueryRequest) {
         //参数校验
         ThrowUtils.throwIf(spaceUserQueryRequest == null, ErrorCode.PARAMS_ERROR);
@@ -96,6 +103,7 @@ public class SpaceUserController {
      * 获取空间成员列表
      */
     @PostMapping("/list")
+    @SaSpaceCheckPermission(value = SpaceUserPermissionConstant.SPACE_USER_MANAGE)
     public BaseResponse<List<SpaceUserVO>> listSpaceUser(@RequestBody SpaceUserQueryRequest spaceUserQueryRequest) {
         ThrowUtils.throwIf(spaceUserQueryRequest == null, ErrorCode.PARAMS_ERROR);
         List<SpaceUserVO> spaceVOList = spaceUserService.getSpaceVOList(spaceUserQueryRequest);
@@ -106,11 +114,11 @@ public class SpaceUserController {
      * 分页查询（获取的是未脱敏的数据，管理员使用）
      */
     @PostMapping("/list/page")
+    @SaSpaceCheckPermission(value = SpaceUserPermissionConstant.SPACE_USER_MANAGE)
     @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
     public BaseResponse<Page<Space>> listSpaceByPage(@RequestBody SpaceQueryRequest spaceQueryRequest) {
         int current = spaceQueryRequest.getCurrent();
         int pageSize = spaceQueryRequest.getPageSize();
-
         Page<Space> picturePage = spaceService.page(new Page<>(current, pageSize),
                 QueryWrapperUtils.getQueryWrapper(spaceQueryRequest));
         return ResultUtils.success(picturePage);
@@ -120,6 +128,7 @@ public class SpaceUserController {
      * 编辑空间成员信息（主要是编辑这个成员在这个空间角色）
      */
     @PostMapping("/edit")
+    @SaSpaceCheckPermission(value = SpaceUserPermissionConstant.SPACE_USER_MANAGE)
     public BaseResponse<Boolean> editSpaceUser(@RequestBody SpaceUserEditRequest spaceUserEditRequest) {
         ThrowUtils.throwIf(spaceUserEditRequest == null || spaceUserEditRequest.getId() <= 0, ErrorCode.PARAMS_ERROR);
         spaceUserService.editSpaceUser(spaceUserEditRequest);

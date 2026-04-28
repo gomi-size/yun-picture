@@ -34,7 +34,7 @@ public class PictureUpload extends PictureUploadTemplate {
         ThrowUtils.throwIf(multipartFile == null, ErrorCode.PARAMS_ERROR, "文件为空");
         //1.校验文件大小
         long fileSize = multipartFile.getSize();
-        final long ONE_N = 1024 * 1024;
+        final long ONE_N = 1024 * 1024*2;
         ThrowUtils.throwIf(fileSize > ONE_N, ErrorCode.PARAMS_ERROR, "文件太大");
         //2.校验文件后缀
         String suffix = FileUtil.getSuffix(multipartFile.getOriginalFilename());

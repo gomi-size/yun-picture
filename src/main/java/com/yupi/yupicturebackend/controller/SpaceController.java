@@ -1,6 +1,7 @@
 package com.yupi.yupicturebackend.controller;
 
 import cn.hutool.core.bean.BeanUtil;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.yupi.yupicturebackend.annotation.AuthCheck;
 import com.yupi.yupicturebackend.common.BaseResponse;
@@ -10,16 +11,20 @@ import com.yupi.yupicturebackend.common.ResultUtils;
 import com.yupi.yupicturebackend.constant.UserConstant;
 import com.yupi.yupicturebackend.exception.ErrorCode;
 import com.yupi.yupicturebackend.exception.ThrowUtils;
+import com.yupi.yupicturebackend.manager.auth.SpaceUserAuthManager;
 import com.yupi.yupicturebackend.model.dto.sapce.*;
+import com.yupi.yupicturebackend.model.entity.Picture;
 import com.yupi.yupicturebackend.model.entity.Space;
 import com.yupi.yupicturebackend.model.entity.User;
 import com.yupi.yupicturebackend.model.enums.SpaceLevelEnum;
 import com.yupi.yupicturebackend.model.enums.UserRoleEnum;
 import com.yupi.yupicturebackend.model.vo.SpaceVO;
+import com.yupi.yupicturebackend.service.PictureService;
 import com.yupi.yupicturebackend.service.SpaceService;
 import com.yupi.yupicturebackend.service.UserService;
 import lombok.extern.slf4j.Slf4j;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 
@@ -38,7 +43,10 @@ public class SpaceController {
     private UserService userService;
     @Resource
     private SpaceService spaceService;
-
+    @Resource
+    private SpaceUserAuthManager spaceUserAuthManager;
+    @Resource
+    private PictureService pictureService;
 
 
     /**
@@ -76,7 +84,11 @@ public class SpaceController {
         ThrowUtils.throwIf(!space.getUserId().equals(loginUser.getId()) &&
                 !UserRoleEnum.ADMIN.getValue().equals(loginUser.getUserRole()), ErrorCode.NO_AUTH_ERROR);
 
-        //删除空间
+        //删除空间，当下的图片也要删除
+        Long spaceId = space.getId();
+        pictureService.remove(
+                new LambdaQueryWrapper<Picture>().eq(Picture::getSpaceId, spaceId)
+        );
         boolean result = spaceService.removeById(space.getId());
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
         return ResultUtils.success(result);
@@ -110,12 +122,18 @@ public class SpaceController {
      * 根据id获取空间(获取的是脱敏的数据)
      */
     @GetMapping("/get/vo")
-    public BaseResponse<SpaceVO> getSpaceVOById(Long id) {
+    public BaseResponse<SpaceVO> getSpaceVOById(Long id,HttpServletRequest request) {
         ThrowUtils.throwIf(id == null || id <= 0, ErrorCode.PARAMS_ERROR);
         Space space = spaceService.getById(id);
         ThrowUtils.throwIf(space == null, ErrorCode.NOT_FOUND_ERROR);
-        SpaceVO pictureVO = BeanUtil.copyProperties(space, SpaceVO.class);
-        return ResultUtils.success(pictureVO);
+
+        //获取权限
+        List<String> permissionList = spaceUserAuthManager.getPermissionList(space, userService.getLoginUser(request));
+
+        SpaceVO spaceVO = BeanUtil.copyProperties(space, SpaceVO.class);
+        spaceVO.setPermissionList(permissionList);
+
+        return ResultUtils.success(spaceVO);
     }
 
     /**
