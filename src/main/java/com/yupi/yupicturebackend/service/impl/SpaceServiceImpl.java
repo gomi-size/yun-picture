@@ -8,6 +8,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.yupi.yupicturebackend.Utils.QueryWrapperUtils;
 import com.yupi.yupicturebackend.exception.ErrorCode;
 import com.yupi.yupicturebackend.exception.ThrowUtils;
+import com.yupi.yupicturebackend.mapper.SpaceMapper;
 import com.yupi.yupicturebackend.model.dto.sapce.SpaceAddRequest;
 import com.yupi.yupicturebackend.model.dto.sapce.SpaceEditRequest;
 import com.yupi.yupicturebackend.model.dto.sapce.SpaceQueryRequest;
@@ -22,7 +23,6 @@ import com.yupi.yupicturebackend.model.enums.UserRoleEnum;
 import com.yupi.yupicturebackend.model.vo.SpaceVO;
 import com.yupi.yupicturebackend.model.vo.UserVO;
 import com.yupi.yupicturebackend.service.SpaceService;
-import com.yupi.yupicturebackend.mapper.SpaceMapper;
 import com.yupi.yupicturebackend.service.SpaceUserService;
 import com.yupi.yupicturebackend.service.UserService;
 import org.springframework.stereotype.Service;
@@ -48,6 +48,11 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
     private TransactionTemplate transactionTemplate;
     @Resource
     private SpaceUserService spaceUserService;
+/*
+    @Resource
+    @Lazy
+    private DynamicShardingManager dynamicShardingManager;
+*/
 
 
     /**
@@ -229,6 +234,8 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
                    result = spaceUserService.save(spaceUser);
                    ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR,"创建团队成员失败");
                }
+               //创建分表，仅对团队空间生效
+               //dynamicShardingManager.createSpacePictureTable(space);
                //返回数据
                return space.getId();
             });
