@@ -191,9 +191,6 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         //设置前端传递的值
         picture.setUserId(loginUser.getId());
         picture.setSpaceId(spaceId);
-        picture.setTags(pictureUploadRequest.getTags());
-        picture.setCategory(pictureUploadRequest.getCategory());
-        picture.setIntroduction(pictureUploadRequest.getIntroduction());
 
         //设置图片状态的审核
         AutoReviewParams.fillReviewParams(picture, loginUser);

@@ -4,10 +4,10 @@ import cn.hutool.core.bean.BeanUtil;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
-
 import com.qcloud.cos.model.COSObject;
 import com.qcloud.cos.model.COSObjectInputStream;
 import com.qcloud.cos.utils.IOUtils;
+import com.yupi.yupicturebackend.Utils.QueryWrapperUtils;
 import com.yupi.yupicturebackend.annotation.AuthCheck;
 import com.yupi.yupicturebackend.api.aliyunAi.aliyunAiApi;
 import com.yupi.yupicturebackend.api.aliyunAi.model.CreateOutPaintingTaskResponse;
@@ -16,12 +16,12 @@ import com.yupi.yupicturebackend.api.imagesSearch.ImageSearchApiFacade;
 import com.yupi.yupicturebackend.api.imagesSearch.model.ImageSearchResult;
 import com.yupi.yupicturebackend.common.BaseResponse;
 import com.yupi.yupicturebackend.common.DeleteRequest;
-import com.yupi.yupicturebackend.Utils.QueryWrapperUtils;
 import com.yupi.yupicturebackend.common.ResultUtils;
 import com.yupi.yupicturebackend.constant.UserConstant;
 import com.yupi.yupicturebackend.exception.BusinessException;
 import com.yupi.yupicturebackend.exception.ErrorCode;
 import com.yupi.yupicturebackend.exception.ThrowUtils;
+import com.yupi.yupicturebackend.manager.CosManager;
 import com.yupi.yupicturebackend.manager.auth.SpaceUserAuthManager;
 import com.yupi.yupicturebackend.manager.auth.StpKit;
 import com.yupi.yupicturebackend.manager.auth.annotation.SaSpaceCheckPermission;
@@ -37,11 +37,9 @@ import com.yupi.yupicturebackend.service.PictureService;
 import com.yupi.yupicturebackend.service.SpaceService;
 import com.yupi.yupicturebackend.service.UserService;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-import com.yupi.yupicturebackend.manager.CosManager;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
@@ -86,7 +84,7 @@ public class PictureController {
     @SaSpaceCheckPermission(value = SpaceUserPermissionConstant.PICTURE_UPLOAD)
     public BaseResponse<PictureVO> uploadPicture(
             @RequestPart("file") MultipartFile multipartFile,
-            PictureUploadRequest pictureUploadRequest,
+           PictureUploadRequest pictureUploadRequest,
             HttpServletRequest request) {
         //需要判断用户是否登录
         User loginUser = userService.getLoginUser(request);

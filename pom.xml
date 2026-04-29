@@ -127,12 +127,12 @@
             <version>5.6.227</version>
         </dependency>
 
-        <!-- 分库分表 -->
+<!--        &lt;!&ndash; 分库分表 &ndash;&gt;
         <dependency>
             <groupId>org.apache.shardingsphere</groupId>
             <artifactId>shardingsphere-jdbc-core-spring-boot-starter</artifactId>
             <version>5.2.0</version>
-        </dependency>
+        </dependency>-->
 
     </dependencies>
     <dependencyManagement>

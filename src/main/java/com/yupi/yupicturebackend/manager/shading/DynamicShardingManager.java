@@ -1,3 +1,4 @@
+/*
 package com.yupi.yupicturebackend.manager.shading;
 
 import com.baomidou.mybatisplus.extension.toolkit.SqlRunner;
@@ -23,7 +24,9 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-/*@Component*/
+*/
+/*@Component*//*
+
 @Slf4j
 public class DynamicShardingManager {
 
@@ -43,9 +46,11 @@ public class DynamicShardingManager {
         updateShardingTableNodes();
     }
 
-    /**
+    */
+/**
      * 获取所有动态表名，包括初始表 picture 和分表 picture_{spaceId}
-     */
+     *//*
+
     private Set<String> fetchAllPictureTableNames() {
         // 为了测试方便，直接对所有团队空间分表（实际上线改为仅对旗舰版生效）
         Set<Long> spaceIds = spaceService.lambdaQuery()
@@ -61,9 +66,11 @@ public class DynamicShardingManager {
         return tableNames;
     }
 
-    /**
+    */
+/**
      * 更新 ShardingSphere 的 actual-data-nodes 动态表名配置
-     */
+     *//*
+
     private void updateShardingTableNodes() {
         Set<String> tableNames = fetchAllPictureTableNames();
         String newActualDataNodes = tableNames.stream()
@@ -104,9 +111,11 @@ public class DynamicShardingManager {
         }
     }
 
-    /**
+    */
+/**
      * 获取 ShardingSphere ContextManager
-     */
+     *//*
+
     private ContextManager getContextManager() {
         try (ShardingSphereConnection connection = dataSource.getConnection().unwrap(ShardingSphereConnection.class)) {
             return connection.getContextManager();
@@ -115,10 +124,12 @@ public class DynamicShardingManager {
         }
     }
 
-    /**
+    */
+/**
      * 创建空间图片分表
      * @param space
-     */
+     *//*
+
     public void createSpacePictureTable(Space space) {
         // 动态创建分表
         // 仅为旗舰版团队空间创建分表
@@ -138,3 +149,4 @@ public class DynamicShardingManager {
     }
 
 }
+*/

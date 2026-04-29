@@ -56,7 +56,7 @@ public class SpaceUserController {
 
 
     /**
-     * 从空间移除成员
+     * 从空间移除成员，传递过来的是用户的id
      *
      * @param deleteRequest 删除的统一请求
      * @return 布尔

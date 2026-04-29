@@ -1,3 +1,4 @@
+/*
 package com.yupi.yupicturebackend.manager.shading;
 
 import org.apache.shardingsphere.sharding.api.sharding.standard.PreciseShardingValue;
@@ -8,9 +9,11 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Properties;
 
+*/
 /**
  * 图片分表算法实现
- */
+ *//*
+
 public class PictureShardingAlgorithm implements StandardShardingAlgorithm<Long> {
 
     @Override
@@ -45,3 +48,4 @@ public class PictureShardingAlgorithm implements StandardShardingAlgorithm<Long>
 
     }
 }
+*/
