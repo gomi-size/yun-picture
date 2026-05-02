@@ -25,6 +25,7 @@ import com.yupi.yupicturebackend.model.vo.UserVO;
 import com.yupi.yupicturebackend.service.SpaceService;
 import com.yupi.yupicturebackend.service.SpaceUserService;
 import com.yupi.yupicturebackend.service.UserService;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -48,6 +49,8 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
     private TransactionTemplate transactionTemplate;
     @Resource
     private SpaceUserService spaceUserService;
+    @Resource
+    private StringRedisTemplate stringRedisTemplate;
 /*
     @Resource
     @Lazy
@@ -214,7 +217,8 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
                 , ErrorCode.NO_AUTH_ERROR,"无权限创建指定级别空间");
 
         //4.控制同一用户，只能创建一个空间，以及一个团队空间
-        String lock=String.valueOf(userId).intern();
+        String userIdStr=String.valueOf(userId).intern();
+        String lock="project:space:add:lock:"+userIdStr;
         synchronized (lock) {
            Long newSpaceId=  transactionTemplate.execute(status -> {
                 //判断是否有空间
