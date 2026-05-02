@@ -7,13 +7,16 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import com.yupi.yupicturebackend.manager.dsiruptor.PictureEditEventProducer;
+import com.yupi.yupicturebackend.manager.redisMessage.RedisWebSocketConfig;
 import com.yupi.yupicturebackend.manager.websocket.model.PictureEditActionEnum;
 import com.yupi.yupicturebackend.manager.websocket.model.PictureEditMessageTypeEnum;
 import com.yupi.yupicturebackend.manager.websocket.model.PictureEditRequestMessage;
 import com.yupi.yupicturebackend.manager.websocket.model.PictureEditResponseMessage;
 import com.yupi.yupicturebackend.model.entity.User;
 import com.yupi.yupicturebackend.model.vo.UserVO;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
@@ -24,14 +27,16 @@ import javax.annotation.Resource;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 图片编辑WebSocket
  */
 @Component
+@Slf4j
 public class PictureEditHandler extends TextWebSocketHandler {
-    // 每张图片的编辑状态（用来控制编辑图片的），key: pictureId, value: 当前正在编辑的用户 ID
-    private final Map<Long, Long> pictureEditingUsers = new ConcurrentHashMap<>();
+/*    // 每张图片的编辑状态（用来控制编辑图片的），key: pictureId, value: 当前正在编辑的用户 ID
+    private final Map<Long, Long> pictureEditingUsers = new ConcurrentHashMap<>();*/
 
     // 保存所有连接的会话（用来将操作分发给set中的用户），key: pictureId, value: 用户会话集合
     private final Map<Long, Set<WebSocketSession>> pictureSessions = new ConcurrentHashMap<>();
@@ -39,6 +44,12 @@ public class PictureEditHandler extends TextWebSocketHandler {
     @Resource
     @Lazy
     private PictureEditEventProducer pictureEditEventProducer;
+
+    @Resource
+    private StringRedisTemplate stringRedisTemplate;
+
+    // 分布式锁的前缀常量
+    private static final String EDIT_LOCK_PREFIX = "picture:edit:lock:";
 
     /**
      * 链接建立成功（成员加入空间）
@@ -68,7 +79,7 @@ public class PictureEditHandler extends TextWebSocketHandler {
         responseMessage.setUser(BeanUtil.copyProperties(user, UserVO.class));
 
         //这个要广播给所有成员
-        broadcastToPicture(pictureId, responseMessage);
+        publishToRedis(responseMessage);
 
     }
 
@@ -104,17 +115,27 @@ public class PictureEditHandler extends TextWebSocketHandler {
      */
     public void handleEnterEditMessage(PictureEditRequestMessage pictureEditRequestMessage, WebSocketSession session, User user, Long pictureId) throws Exception {
 
-        if (!pictureEditingUsers.containsKey(pictureId)) {
-            pictureEditingUsers.put(pictureId, user.getId());
+        //TODO 获取到分布式的钥匙
+        String lockKey = EDIT_LOCK_PREFIX + pictureId;
+        // TODO 尝试获取锁，设置 30 秒过期时间作为兜底（防止宕机死锁）
+        Boolean lockSuccess = stringRedisTemplate.opsForValue()
+                .setIfAbsent(lockKey, String.valueOf(user.getId()), 30, TimeUnit.SECONDS);
+
+        //TODO
+        if (Boolean.TRUE.equals(lockSuccess)) {
+            /*pictureEditingUsers.put(pictureId, user.getId());*/
 
             PictureEditResponseMessage pictureEditResponseMessage = new PictureEditResponseMessage();
             pictureEditResponseMessage.setType(PictureEditMessageTypeEnum.ENTER_EDIT.getValue());
             String message = String.format("%s开始编辑图片", user.getUserName());
             pictureEditResponseMessage.setMessage(message);
             pictureEditResponseMessage.setUser(BeanUtil.copyProperties(user, UserVO.class));
-            //全广播
-            broadcastToPicture(pictureId, pictureEditResponseMessage);
+            //TODO 全广播
+            publishToRedis(pictureEditResponseMessage);
 
+        }else {
+            // 可选：发送获取锁失败的错误信息给当前用户
+            log.warn("用户 {} 尝试编辑图片 {} 失败，锁已被占用", user.getId(), pictureId);
         }
     }
 
@@ -127,17 +148,20 @@ public class PictureEditHandler extends TextWebSocketHandler {
      * @param pictureId
      */
     public void handleEnterActionMessage(PictureEditRequestMessage pictureEditRequestMessage, WebSocketSession session, User user, Long pictureId) throws Exception {
-        //获取到当前操作人的id
-        Long editPictureUserId = pictureEditingUsers.get(pictureId);
-
+        String lockKey = EDIT_LOCK_PREFIX + pictureId;
+        // 去 Redis 查一下现在的锁是不是还是当前用户的
+        String currentEditorId = stringRedisTemplate.opsForValue().get(lockKey);
 
         String editAction = pictureEditRequestMessage.getEditAction();
-        PictureEditActionEnum enumByValue = PictureEditActionEnum.getEnumByValue(editAction);
-        if (enumByValue == null) {
+        PictureEditActionEnum actionEnum = PictureEditActionEnum.getEnumByValue(editAction);
+
+        if (actionEnum == null) {
             return;
         }
         //确认当前编辑者
-        if(editPictureUserId!=null&&editPictureUserId.equals(user.getId())) {
+        if( String.valueOf(user.getId()).equals(currentEditorId)) {
+            // 每操作一次，顺手给锁续期 60 秒，防止正常编辑时锁过期被别人抢走
+            stringRedisTemplate.expire(lockKey, 60, TimeUnit.SECONDS);
             //是当前编辑者进行操作
             PictureEditResponseMessage pictureEditResponseMessage = new PictureEditResponseMessage();
             pictureEditResponseMessage.setType(PictureEditMessageTypeEnum.EDIT_ACTION.getValue());
@@ -146,7 +170,7 @@ public class PictureEditHandler extends TextWebSocketHandler {
             pictureEditResponseMessage.setUser(BeanUtil.copyProperties(user, UserVO.class));
             pictureEditResponseMessage.setEditAction(editAction);
             ///要除掉自己
-            broadcastToPicture(pictureId, pictureEditResponseMessage, session);
+            publishToRedis(pictureEditResponseMessage);
 
         }
 
@@ -162,10 +186,12 @@ public class PictureEditHandler extends TextWebSocketHandler {
      */
     public void handleEnterExitMessage(PictureEditRequestMessage pictureEditRequestMessage, WebSocketSession session, User user, Long pictureId) throws Exception {
 
-        Long editPictureUserId = pictureEditingUsers.get(pictureId);
+        String lockKey = EDIT_LOCK_PREFIX + pictureId;
+        String currentEditorId = stringRedisTemplate.opsForValue().get(lockKey);
         //确认当前角色才能退出
-        if (editPictureUserId != null&&editPictureUserId.equals(user.getId())) {
-            pictureEditingUsers.remove(pictureId);
+        if (String.valueOf(user.getId()).equals(currentEditorId)) {
+            //释放锁
+            stringRedisTemplate.delete(lockKey);
             //构造消息
             PictureEditResponseMessage pictureEditResponseMessage = new PictureEditResponseMessage();
             pictureEditResponseMessage.setType(PictureEditMessageTypeEnum.EXIT_EDIT.getValue());
@@ -173,7 +199,7 @@ public class PictureEditHandler extends TextWebSocketHandler {
             pictureEditResponseMessage.setMessage(message);
             pictureEditResponseMessage.setUser(BeanUtil.copyProperties(user, UserVO.class));
             ///全广播
-            broadcastToPicture(pictureId, pictureEditResponseMessage);
+            publishToRedis(pictureEditResponseMessage);
         }
     }
 
@@ -191,6 +217,10 @@ public class PictureEditHandler extends TextWebSocketHandler {
         User user = (User) attributes.get("user");
         Long pictureId = (Long) attributes.get("pictureId");
         handleEnterExitMessage(null, session,user ,pictureId );
+
+        // 强行尝试释放锁（防止用户直接关掉浏览器）
+        handleEnterExitMessage(null, session, user, pictureId);
+
         //删除会话中的成员
         Set<WebSocketSession> webSocketSessions = pictureSessions.get(pictureId);
         if (webSocketSessions != null) {
@@ -200,6 +230,7 @@ public class PictureEditHandler extends TextWebSocketHandler {
                 pictureSessions.remove(pictureId);
             }
         }
+
         //通知所有用户，该用户已经下线了
         PictureEditResponseMessage pictureEditResponseMessage = new PictureEditResponseMessage();
         pictureEditResponseMessage.setType(PictureEditMessageTypeEnum.INFO.getValue());
@@ -207,71 +238,122 @@ public class PictureEditHandler extends TextWebSocketHandler {
         pictureEditResponseMessage.setMessage(message);
         pictureEditResponseMessage.setUser(BeanUtil.copyProperties(user, UserVO.class));
         ///全广播
-        broadcastToPicture(pictureId, pictureEditResponseMessage);
+        publishToRedis(pictureEditResponseMessage);
     }
 
 
     /**
-     * 广播给该用户的所有用户（支持排除某个Session）
+     * 【核心改动】不直接发，而是把消息丢给 Redis 邮局
      */
-    public void broadcastToPicture(Long pictureId, PictureEditResponseMessage responseMessage, WebSocketSession
-            session) throws Exception {
-
-        Set<WebSocketSession> Sessions = pictureSessions.get(pictureId);
-        //创建 ObjectMapper
-        ObjectMapper objectMapper = new ObjectMapper();
-
-        //配置序列化:将Long类型转为String，解决丢失精度问题
-        SimpleModule module = new SimpleModule();
-        module.addSerializer(Long.class, ToStringSerializer.instance);
-        module.addSerializer(Long.TYPE, ToStringSerializer.instance);// 支持 long 基本类型
-        objectMapper.registerModule(module);
-
-        //向每一个session发送当前操作
-        if (CollUtil.isNotEmpty(Sessions)) {
-            String message = objectMapper.writeValueAsString(responseMessage);
-            TextMessage textMessage = new TextMessage(message);
-            for (WebSocketSession webSocketSession : Sessions) {
-
-                //排除掉操作人
-                if (session != null && session.equals(webSocketSession)) {
-                    continue;
-                }
-                if (webSocketSession.isOpen()) {
-                    webSocketSession.sendMessage(textMessage);
-                }
-
-            }
-        }
-
+    private void publishToRedis(PictureEditResponseMessage responseMessage) {
+        String jsonMessage = JSONUtil.toJsonStr(responseMessage);
+        stringRedisTemplate.convertAndSend(RedisWebSocketConfig.PICTURE_EDIT_CHANNEL, jsonMessage);
     }
 
     /**
-     * 广播给该用户的所有用户
+     * 被 Redis 监听器调用，负责真正的本地下发
      */
-    public void broadcastToPicture(Long pictureId, PictureEditResponseMessage responseMessage) throws Exception {
-
-        Set<WebSocketSession> Sessions = pictureSessions.get(pictureId);
-        //创建 ObjectMapper
-        ObjectMapper objectMapper = new ObjectMapper();
-
-        //配置序列化:将Long类型转为String，解决丢失精度问题
-        SimpleModule module = new SimpleModule();
-        module.addSerializer(Long.class, ToStringSerializer.instance);
-        module.addSerializer(Long.TYPE, ToStringSerializer.instance);// 支持 long 基本类型
-        objectMapper.registerModule(module);
-
-        //向每一个session发送当前操作
-        if (CollUtil.isNotEmpty(Sessions)) {
-            String message = objectMapper.writeValueAsString(responseMessage);
-            TextMessage textMessage = new TextMessage(message);
-            for (WebSocketSession webSocketSession : Sessions) {
-                if (webSocketSession.isOpen()) {
-                    webSocketSession.sendMessage(textMessage);
-                }
-
-            }
+    public void broadcastToLocalPicture(Long pictureId, PictureEditResponseMessage responseMessage) throws Exception {
+        Set<WebSocketSession> sessions = pictureSessions.get(pictureId);
+        if (CollUtil.isEmpty(sessions)) {
+            return;
         }
 
+        // 1. 获取这个消息是由哪个用户触发的（也就是“发送者”）
+        Long senderId = responseMessage.getUser().getId();
+        // 2. 获取当前消息的类型
+        String messageType = responseMessage.getType();
+
+        ObjectMapper objectMapper = new ObjectMapper();
+        SimpleModule module = new SimpleModule();
+        module.addSerializer(Long.class, ToStringSerializer.instance);
+        module.addSerializer(Long.TYPE, ToStringSerializer.instance);
+        objectMapper.registerModule(module);
+
+        String messageStr = objectMapper.writeValueAsString(responseMessage);
+        TextMessage textMessage = new TextMessage(messageStr);
+
+        for (WebSocketSession webSocketSession : sessions) {
+            if (webSocketSession.isOpen()) {
+                // 3. 获取当前正准备发送的这个 WebSocket 连接属于哪个用户（“接收者”）
+                Map<String, Object> attributes = webSocketSession.getAttributes();
+                User sessionUser = (User) attributes.get("user");
+                Long receiverId = sessionUser.getId();
+
+                // 4. 【核心过滤逻辑】：如果是编辑动作，且发送者和接收者是同一个人，则跳过！
+                if (PictureEditMessageTypeEnum.EDIT_ACTION.getValue().equals(messageType)) {
+                    if (senderId.equals(receiverId)) {
+                        continue; // 成功排除了自己
+                    }
+                }
+
+                // 其他类型的消息，或者不是发给自己的编辑动作，正常下发
+                webSocketSession.sendMessage(textMessage);
+            }
+        }
     }
 }
+//
+///**
+// * 广播给该用户的所有用户（支持排除某个Session）
+// */
+//public void broadcastToPicture(Long pictureId, PictureEditResponseMessage responseMessage, WebSocketSession
+//        session) throws Exception {
+//
+//    Set<WebSocketSession> Sessions = pictureSessions.get(pictureId);
+//    //创建 ObjectMapper
+//    ObjectMapper objectMapper = new ObjectMapper();
+//
+//    //配置序列化:将Long类型转为String，解决丢失精度问题
+//    SimpleModule module = new SimpleModule();
+//    module.addSerializer(Long.class, ToStringSerializer.instance);
+//    module.addSerializer(Long.TYPE, ToStringSerializer.instance);// 支持 long 基本类型
+//    objectMapper.registerModule(module);
+//
+//    //向每一个session发送当前操作
+//    if (CollUtil.isNotEmpty(Sessions)) {
+//        String message = objectMapper.writeValueAsString(responseMessage);
+//        TextMessage textMessage = new TextMessage(message);
+//        for (WebSocketSession webSocketSession : Sessions) {
+//
+//            //排除掉操作人
+//            if (session != null && session.equals(webSocketSession)) {
+//                continue;
+//            }
+//            if (webSocketSession.isOpen()) {
+//                webSocketSession.sendMessage(textMessage);
+//            }
+//
+//        }
+//    }
+//
+//}
+//
+///**
+// * 广播给该用户的所有用户
+// */
+//public void broadcastToPicture(Long pictureId, PictureEditResponseMessage responseMessage) throws Exception {
+//
+//    Set<WebSocketSession> Sessions = pictureSessions.get(pictureId);
+//    //创建 ObjectMapper
+//    ObjectMapper objectMapper = new ObjectMapper();
+//
+//    //配置序列化:将Long类型转为String，解决丢失精度问题
+//    SimpleModule module = new SimpleModule();
+//    module.addSerializer(Long.class, ToStringSerializer.instance);
+//    module.addSerializer(Long.TYPE, ToStringSerializer.instance);// 支持 long 基本类型
+//    objectMapper.registerModule(module);
+//
+//    //向每一个session发送当前操作
+//    if (CollUtil.isNotEmpty(Sessions)) {
+//        String message = objectMapper.writeValueAsString(responseMessage);
+//        TextMessage textMessage = new TextMessage(message);
+//        for (WebSocketSession webSocketSession : Sessions) {
+//            if (webSocketSession.isOpen()) {
+//                webSocketSession.sendMessage(textMessage);
+//            }
+//
+//        }
+//    }
+//
+//}

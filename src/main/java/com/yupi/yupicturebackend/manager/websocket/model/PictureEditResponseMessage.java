@@ -32,4 +32,9 @@ public class PictureEditResponseMessage {
      * 用户信息
      */
     private UserVO user;
+
+    /**
+     * 【新增】图片 ID（分布式广播必须带上这个，以便接收端知道发给哪个房间的本地连接）
+     */
+    private Long pictureId;
 }
