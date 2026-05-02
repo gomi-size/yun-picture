@@ -13,8 +13,14 @@ import javax.annotation.Resource;
 @Configuration
 @EnableWebSocket
 public class WebSocketConfig implements WebSocketConfigurer {
+    /**
+     * 处理器
+     */
     @Resource
     private PictureEditHandler pictureEditHandler;
+    /**
+     * 拦截器
+     */
     @Resource
     private WsHandshakeInterceptor wsHandshakeInterceptor;
     @Override
