@@ -556,7 +556,7 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
     }
 
     /**
-     * 用户修改图片
+     * 用户修改批量图片
      * @param pictureEditRequest 修改图片的DTO
      * @param request 用户
      * @return 布尔

@@ -81,7 +81,7 @@ public class PictureController {
      * 上传图片（可重新上传）
      */
     @PostMapping("/upload")
-    @SaSpaceCheckPermission(value = SpaceUserPermissionConstant.PICTURE_UPLOAD)
+    /*    @SaSpaceCheckPermission(value = SpaceUserPermissionConstant.PICTURE_UPLOAD)*/
     public BaseResponse<PictureVO> uploadPicture(
             @RequestPart("file") MultipartFile multipartFile,
            PictureUploadRequest pictureUploadRequest,
@@ -101,7 +101,7 @@ public class PictureController {
      * 通过rul上传图片（可重新上传）
      */
     @PostMapping("/upload/url")
-    @SaSpaceCheckPermission(value = SpaceUserPermissionConstant.PICTURE_UPLOAD)
+    /*    @SaSpaceCheckPermission(value = SpaceUserPermissionConstant.PICTURE_UPLOAD)*/
     @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
     public BaseResponse<PictureVO> uploadPictureByUrl(
             @RequestBody PictureUploadRequest pictureUploadRequest,
@@ -387,7 +387,6 @@ public class PictureController {
         ThrowUtils.throwIf(taskId == null, ErrorCode.PARAMS_ERROR);
         GetOutPaintingTaskResponse task = aliyunAiApi.getOutPaintingTask(taskId);
         return ResultUtils.success(task);
-
     }
 
 
