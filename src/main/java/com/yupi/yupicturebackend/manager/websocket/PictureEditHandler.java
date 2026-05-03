@@ -218,8 +218,6 @@ public class PictureEditHandler extends TextWebSocketHandler {
 
         //确认当前角色才能退出
         if (result!=null&&result>0) {
-            //释放锁
-            stringRedisTemplate.delete(lockKey);
             //构造消息
             PictureEditResponseMessage pictureEditResponseMessage = new PictureEditResponseMessage();
             pictureEditResponseMessage.setType(PictureEditMessageTypeEnum.EXIT_EDIT.getValue());
